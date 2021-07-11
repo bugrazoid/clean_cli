@@ -14,6 +14,25 @@ use std::{
     }
 };
 
+///  __Cli__ is a central unit that contains all possible commands, arguments and handlers.
+/// To create instance using build pattern. Generic parameter using for return values from handlers.
+/// 
+/// # Example
+///
+/// ```rust
+/// use clean_cli::*;
+///
+/// let cli = Cli::<bool>::builder()
+///      .command(CommandBuilder::with_name("cmd")
+///          .handler(|ctx| {
+///              // some logic
+///              return true;
+///          })
+///      )
+///      .build();
+///
+/// assert!(cli.exec_line("cmd").unwrap());
+/// ```
 #[derive(Debug)]
 pub struct Cli<R: Default> {
     commands: HashMap<String, Rc<Command<R>>>,
@@ -28,10 +47,12 @@ enum ParseState {
 }
 
 impl<R: Default> Cli<R> {
+    /// Create builder
     pub fn builder() -> CliBuilder<R> {
         CliBuilder::default()
     }
 
+    /// Execute _line_ 
     pub fn exec_line(&self, line: &str) -> Result<R, Error> {
         let mut ctx = Context::default();
         let mut state = ParseState::ReadFirst;
@@ -179,6 +200,7 @@ impl<R: Default> Cli<R> {
     }
 }
 
+/// **CliBuilder** is a helper using for build **Cli**.
 #[derive(Default, Debug)]
 pub struct CliBuilder<R> {
     commands: HashMap<String, Rc<Command<R>>>,
@@ -187,21 +209,25 @@ pub struct CliBuilder<R> {
 }
 
 impl<R: Default> CliBuilder<R> {
+    /// Add command
     pub fn command(mut self, cmd: CommandBuilder<R>) -> Self {
         add_command(self.commands.borrow_mut(), cmd);
         self
     }
 
+    /// Switch output error message to stdout.
     pub fn print_error(mut self, enable: bool) -> Self {
         self.print_error = enable;
         self
     }
 
+    /// Switch output help message to stdout.
     pub fn print_help(mut self, enable: bool) -> Self {
         self.print_help = enable;
         self
     }
 
+    /// Build and return **Cli** object.
     pub fn build(self) -> Cli<R> {
         Cli {
             commands: self.commands,

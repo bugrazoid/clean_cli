@@ -11,6 +11,7 @@ type CallBack<R> = RefCell<Box<dyn FnMut(Context<R>) -> R>>;
 
 const NO_DESCRIPTION: &str = "";
 
+/// **CommandBuilder** is a helper using for build command object.
 #[derive(Default)]
 pub struct CommandBuilder<R> {
     name: String,
@@ -31,6 +32,7 @@ pub(super) struct Command<R> {
 }
 
 impl<R: Default> CommandBuilder<R> {
+    /// Create command with name.
     pub fn with_name(name: &str) -> CommandBuilder<R> {
         CommandBuilder {
             name: name.to_string(),
@@ -39,24 +41,27 @@ impl<R: Default> CommandBuilder<R> {
         }
     }
 
+    /// Add alias for command.
     pub fn alias(mut self, alias: &str) -> Self {
         self.aliases.push(alias.to_string());
         self
     }
 
-    /**
-     * Panics if **command** has no executor or command with same name already exist
-     */
+    /// Add subcommand
+    /// # Panic
+    /// Panics if command has no executor or command with same name already exist
     pub fn subcommand(mut self, command: CommandBuilder<R>) -> Self {
         add_command(self.subcommands.borrow_mut(), command);
         self
     }
 
+    /// Add parameter
     pub fn parameter(mut self, param: ParameterBuilder) -> Self {
         add_parameter(self.parameters.borrow_mut(), param);
         self
     }
 
+    /// Set command handler
     pub fn handler<F>(mut self, f: F) -> Self
         where F: FnMut(Context<R>) -> R + 'static
     {
@@ -64,6 +69,7 @@ impl<R: Default> CommandBuilder<R> {
         self
     }
 
+    /// Set command value type if required. 
     pub fn use_value(mut self, value_type: ArgType) -> Self {
         self.value = Some(value_type);
         self

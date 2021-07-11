@@ -2,7 +2,7 @@
 
 ## Example
 
-```Rust
+```rust
 let cli = Cli::<()>::builder()
         .command(CommandBuilder::with_name("cmd")
             .use_value(ArgType::Bool)
@@ -85,3 +85,5 @@ let cli = Cli::<()>::builder()
         Err(err) => panic!("{:?}", err)
     }
 ```
+
+Send all questions and wishes to <bugrazoid@yandex.ru>

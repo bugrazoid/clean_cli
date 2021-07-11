@@ -1,3 +1,4 @@
+/// Contains value for commands and parameters
 #[derive(Debug, Clone)]
 pub enum ArgValue {
     Bool(bool),
@@ -6,6 +7,7 @@ pub enum ArgValue {
     String(String)
 }
 
+/// Set value type for commands and parameters
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArgType {
     Bool,
@@ -20,6 +22,7 @@ impl Default for ArgType {
     }
 }
 
+/// Command parameter
 #[derive(Debug)]
 pub struct Parameter {
     pub(super) name: String,
@@ -27,6 +30,7 @@ pub struct Parameter {
     pub(super) description: String
 }
 
+/// Buildr for command parameter
 #[derive(Default)]
 pub struct ParameterBuilder<'a> {
     pub(super) name: String,
@@ -36,6 +40,7 @@ pub struct ParameterBuilder<'a> {
 }
 
 impl Parameter {
+    /// Create parameter builder with name
     pub fn with_name(name: &str) -> ParameterBuilder {
         ParameterBuilder {
             name: name.to_string(),
@@ -46,16 +51,20 @@ impl Parameter {
 }
 
 impl<'a> ParameterBuilder<'a> {
+    /// Set parameters value type
     pub fn value_type(mut self, t: ArgType) -> Self {
         self.value_type = t;
         self
     }
 
+    /// Add alias for parameter.
+    /// If alias consist from single charceter than this parameter will be used as short
     pub fn alias(mut self, alias: &'a str) -> Self {
         self.aliases.push(alias.into());
         self
     }
 
+    /// Add description that shown in help
     pub fn description(mut self, text: &'a str) -> Self {
         self.description = Some(text);
         self
