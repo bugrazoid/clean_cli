@@ -57,7 +57,7 @@ impl<R: Default> Cli<R> {
         let mut ctx = Context::default();
         let mut state = ParseState::ReadFirst;
         let mut pos = 0;
-        let args = line.split_whitespace().collect::<Vec<&str>>();
+        let args = split_line(line);
 
         for arg in args.iter() {
             match state {
@@ -237,6 +237,60 @@ impl<R: Default> CliBuilder<R> {
     }
 }
 
+enum LineParseState {
+    EndWord,
+    StartWord{start: usize, quote: Option<char>}
+}
+
+fn split_line(line: &str) -> Vec<&str> {
+    let mut state = LineParseState::EndWord;
+    let line_len = line.len();
+    let result = line.char_indices()
+        .map(move |(i, c)| {
+            let mut result: Option<_> = None;
+            if !c.is_whitespace() {
+                match state {
+                    LineParseState::EndWord => {
+                        let has_quote = c == '\'' || c == '\"';
+                        state = LineParseState::StartWord{
+                            start: if has_quote { i+1 } else { i }, 
+                            quote: if has_quote { Some(c) } else { None }
+                        }
+                    }
+                    LineParseState::StartWord { start, quote } => {
+                        if let Some(q) = quote {
+                            if q == c {
+                                result = Some(&line[start..i]);
+                                state = LineParseState::EndWord;
+                            }
+                        }
+                    },
+                }
+
+                if line_len == i+1 {
+                    if let LineParseState::StartWord { start, quote: _ } = state {
+                        result = Some(&line[start..]);
+                    }
+                }
+            } else {
+                match state {
+                    LineParseState::EndWord => {},
+                    LineParseState::StartWord { start, quote } => {
+                        if quote.is_none() {
+                            result = Some(&line[start..i]);
+                            state = LineParseState::EndWord;
+                        }
+                    },
+                }
+            }
+            result
+        })
+        .filter(|x| x.is_some())
+        .map(|s| s.unwrap())
+        .collect::<Vec<&str>>();
+    result
+}
+
 fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, String> {
     if arg.starts_with("-") && !(arg_type != ArgType::Int || arg_type != ArgType::Float) {
         return Err(format!("Seems {} is not a value", arg));
@@ -274,6 +328,45 @@ fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, Stri
 #[cfg(test)]
 mod test {
     use crate::{ArgType, ArgValue};
+
+    #[test]
+    fn split_line() {
+        let line = "one two three";
+        let v = super::split_line(line);
+        assert_eq!(v[0], "one");
+        assert_eq!(v[1], "two");
+        assert_eq!(v[2], "three");
+    }
+    
+    #[test]
+    fn split_line_with_quotes() {
+        let line = "one \"two\" three";
+        let v = super::split_line(line);
+        assert_eq!(v[0], "one");
+        assert_eq!(v[1], "two");
+        assert_eq!(v[2], "three");
+
+        let line = "one \"two; two and half\" three";
+        let v = super::split_line(line);
+        assert_eq!(v[0], "one");
+        assert_eq!(v[1], "two; two and half");
+        assert_eq!(v[2], "three");
+
+        let line = "one two \"three\"";
+        let v = super::split_line(line);
+        assert_eq!(v[0], "one");
+        assert_eq!(v[1], "two");
+        assert_eq!(v[2], "three");
+    }
+
+    #[test]
+    fn split_line_with_bad_quotes() {
+        let line = "one two \"three";
+        let v = super::split_line(line);
+        assert_eq!(v[0], "one");
+        assert_eq!(v[1], "two");
+        assert_eq!(v[2], "three");
+    }
 
     #[test]
     fn parse_arg_bool() {
