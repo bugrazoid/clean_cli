@@ -437,7 +437,7 @@ fn command_with_string_param_no_value() {
 
 #[test]
 fn command_with_sting_param() {
-    let cli = Cli::<()>::builder()
+    let cli = Cli::<String>::builder()
         .command(CommandBuilder::with_name("cmd")
             .parameter(Parameter::with_name("string")
                 .value_type(ArgType::String)
@@ -448,34 +448,51 @@ fn command_with_sting_param() {
                 if let Some((param, arg)) = &ctx.units.last().unwrap().parameters.get("string") {
                     assert_eq!("string", param.name.as_str());
                     if let ArgValue::String(v) = arg {
-                        assert_eq!(*v, "abc");
+                        return v.clone();
                     }
                 } else {
                     panic!("parameter not found")
                 };
+                String::new()
             })
         )
         .build();
 
     match cli.exec_line("cmd --string abc") {
-        Ok(_) => {}
+        Ok(s) => assert_eq!(s, "abc"),
         Err(err) => panic!("{:?}", err)
     }
 
     match cli.exec_line("cmd --ss abc") {
-        Ok(_) => {}
+        Ok(s) => assert_eq!(s, "abc"),
         Err(err) => panic!("{:?}", err)
     }
 
     match cli.exec_line("cmd -s abc") {
-        Ok(_) => {}
+        Ok(s) => assert_eq!(s, "abc"),
+        Err(err) => panic!("{:?}", err)
+    }
+
+    //quotes
+    match cli.exec_line("cmd --string \"abc 123\"") {
+        Ok(s) => assert_eq!(s, "abc 123"),
+        Err(err) => panic!("{:?}", err)
+    }
+
+    match cli.exec_line("cmd --ss \"abc 123\"") {
+        Ok(s) => assert_eq!(s, "abc 123"),
+        Err(err) => panic!("{:?}", err)
+    }
+
+    match cli.exec_line("cmd -s \"abc 123\"") {
+        Ok(s) => assert_eq!(s, "abc 123"),
         Err(err) => panic!("{:?}", err)
     }
 }
 
 #[test]
 fn command_with_two_string_param() {
-    let cli = Cli::<()>::builder()
+    let cli = Cli::<(Option<String>,Option<String>)>::builder()
         .command(CommandBuilder::with_name("cmd")
             .parameter(Parameter::with_name("string1")
                 .value_type(ArgType::String)
@@ -486,30 +503,71 @@ fn command_with_two_string_param() {
                 .alias("2")
             )
             .handler(|ctx| {
+                let mut result = (None, None);
                 if let Some((param, arg)) = &ctx.units.last().unwrap().parameters.get("string1") {
                     assert_eq!("string1", param.name.as_str());
                     if let ArgValue::String(v) = arg {
-                        assert_eq!(*v, "4.2");
+                        result.0 = Some(v.clone());
                     }
-                } else if let Some((param, arg)) = &ctx.units.last().unwrap().parameters.get("string2") {
+                };
+                
+                if let Some((param, arg)) = &ctx.units.last().unwrap().parameters.get("string2") {
                     assert_eq!("string2", param.name.as_str());
                     if let ArgValue::String(v) = arg {
-                        assert_eq!(*v, "3.33");
+                        result.1 = Some(v.clone());
                     }
-                } else {
-                    panic!("parameter not found")
-                };
+                } 
+
+                result
             })
         )
         .build();
 
     match cli.exec_line("cmd --string1 4.2 --string2 3.33") {
-        Ok(_) => {}
+        Ok(r) => {
+            if let (Some(s1),Some(s2)) = r {
+                assert_eq!(s1.as_str(), "4.2");
+                assert_eq!(s2.as_str(), "3.33");
+            } else {
+                panic!("parameter not found {:?}", r)
+            }
+        }
         Err(err) => panic!("{:?}", err)
     }
 
     match cli.exec_line("cmd -1 4.2 -2 3.33") {
-        Ok(_) => {}
+        Ok(r) => {
+            if let (Some(s1),Some(s2)) = r {
+                assert_eq!(s1.as_str(), "4.2");
+                assert_eq!(s2.as_str(), "3.33");
+            } else {
+                panic!("parameter not found {:?}", r)
+            }
+        }
+        Err(err) => panic!("{:?}", err)
+    }
+
+    match cli.exec_line("cmd --string1 '4.2 2.4' --string2 '3.33 mm'") {
+        Ok(r) => {
+            if let (Some(s1),Some(s2)) = r {
+                assert_eq!(s1.as_str(), "4.2 2.4");
+                assert_eq!(s2.as_str(), "3.33 mm");
+            } else {
+                panic!("parameter not found {:?}", r)
+            }
+        }
+        Err(err) => panic!("{:?}", err)
+    }
+
+    match cli.exec_line("cmd -1 \"4.2 2.4\" -2 \"3.33 mm\"") {
+        Ok(r) => {
+            if let (Some(s1),Some(s2)) = r {
+                assert_eq!(s1.as_str(), "4.2 2.4");
+                assert_eq!(s2.as_str(), "3.33 mm");
+            } else {
+                panic!("parameter not found {:?}", r)
+            }
+        }
         Err(err) => panic!("{:?}", err)
     }
 }
