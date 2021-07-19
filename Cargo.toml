@@ -1,6 +1,6 @@
 [package]
 name = "clean_cli"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Trubnikov Sergey <bugrazoid@yandex.ru>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
