@@ -3,6 +3,7 @@ use super::context::*;
 use super::error::*;
 use super::parameter::*;
 
+use std::io::Write;
 use std::{
     borrow::BorrowMut,
     fmt::Debug,
@@ -36,8 +37,8 @@ use std::{
 #[derive(Debug)]
 pub struct Cli<R: Default> {
     commands: HashMap<String, Rc<Command<R>>>,
-    print_error: bool,
-    print_help: bool,
+    need_print_error: bool,
+    need_print_help: bool,
 }
 
 enum ParseState {
@@ -59,12 +60,12 @@ impl<R: Default> Cli<R> {
         let mut pos = 0;
         let args = split_line(line);
 
-        for arg in args.iter() {
+        for arg in args {
             match state {
                 ParseState::ReadFirst => {
                     if arg.starts_with("--") || arg.starts_with("-") {
                         return self.make_error(Kind::CantExecuteParameter, arg.to_string());
-                    } else if let Some(cmd) = self.commands.get(*arg) {
+                    } else if let Some(cmd) = self.commands.get(arg) {
                         ctx.units.push(ContextUnit {
                             command: (arg, cmd.clone()),
                             parameters: Default::default(),
@@ -127,7 +128,7 @@ impl<R: Default> Cli<R> {
                             }
                             Err(details) => return self.make_error(Kind::ValueParseFailed, details)
                         };
-                    } else if let Some(sub) = cmd.subcommands.get(*arg) {
+                    } else if let Some(sub) = cmd.subcommands.get(arg) {
                         ctx.units.push(ContextUnit {
                             command: (arg, sub.clone()),
                             parameters: Default::default(),
@@ -190,22 +191,36 @@ impl<R: Default> Cli<R> {
 
     fn make_error(&self, kind: Kind, details: String) -> Result<R, Error> {
         let error = Error { kind, details };
-        if self.print_error {
-            println!("{}", error)
+        if self.need_print_error {
+            self.print_error(&error);
         }
-        if self.print_help {
-            println!("HELP TEXT UNIMPLEMENTED")
+        if self.need_print_help {
+            self.print_help();
         }
         Err(error)
     }
+
+    fn print_error(&self, error: &crate::error::Error) {
+        println!("{}", error)
+    }
+
+    fn print_help(&self) {
+        let mut buffer = std::io::BufWriter::new(std::io::stdout());
+        self.commands
+            .keys()
+            .for_each(|key| {
+                let _ = buffer.write(key.as_bytes());
+            });
+        let _ = buffer.flush();
+    }
 }
 
-/// **CliBuilder** is a helper using for build **Cli**.
+/// **CliBuilder** is a helper using for build `Cli`.
 #[derive(Default, Debug)]
 pub struct CliBuilder<R> {
     commands: HashMap<String, Rc<Command<R>>>,
-    print_error: bool,
-    print_help: bool,
+    need_print_error: bool,
+    need_print_help: bool,
 }
 
 impl<R: Default> CliBuilder<R> {
@@ -217,13 +232,13 @@ impl<R: Default> CliBuilder<R> {
 
     /// Switch output error message to stdout.
     pub fn print_error(mut self, enable: bool) -> Self {
-        self.print_error = enable;
+        self.need_print_error = enable;
         self
     }
 
     /// Switch output help message to stdout.
     pub fn print_help(mut self, enable: bool) -> Self {
-        self.print_help = enable;
+        self.need_print_help = enable;
         self
     }
 
@@ -231,8 +246,8 @@ impl<R: Default> CliBuilder<R> {
     pub fn build(self) -> Cli<R> {
         Cli {
             commands: self.commands,
-            print_error: self.print_error,
-            print_help: self.print_help,
+            need_print_error: self.need_print_error,
+            need_print_help: self.need_print_help,
         }
     }
 }
@@ -242,7 +257,7 @@ enum LineParseState {
     StartWord{start: usize, quote: Option<char>}
 }
 
-fn split_line(line: &str) -> Vec<&str> {
+fn split_line(line: &str) -> impl Iterator<Item = &str> {
     let mut state = LineParseState::EndWord;
     let line_len = line.len();
     let result = line.char_indices()
@@ -286,8 +301,7 @@ fn split_line(line: &str) -> Vec<&str> {
             result
         })
         .filter(|x| x.is_some())
-        .map(|s| s.unwrap())
-        .collect::<Vec<&str>>();
+        .map(|s| s.unwrap());
     result
 }
 
@@ -332,7 +346,7 @@ mod test {
     #[test]
     fn split_line() {
         let line = "one two three";
-        let v = super::split_line(line);
+        let v = super::split_line(line).collect::<Vec<&str>>();
         assert_eq!(v[0], "one");
         assert_eq!(v[1], "two");
         assert_eq!(v[2], "three");
@@ -341,19 +355,19 @@ mod test {
     #[test]
     fn split_line_with_quotes() {
         let line = "one \"two\" three";
-        let v = super::split_line(line);
+        let v = super::split_line(line).collect::<Vec<&str>>();
         assert_eq!(v[0], "one");
         assert_eq!(v[1], "two");
         assert_eq!(v[2], "three");
 
         let line = "one \"two; two and half\" three";
-        let v = super::split_line(line);
+        let v = super::split_line(line).collect::<Vec<&str>>();
         assert_eq!(v[0], "one");
         assert_eq!(v[1], "two; two and half");
         assert_eq!(v[2], "three");
 
         let line = "one two \"three\"";
-        let v = super::split_line(line);
+        let v = super::split_line(line).collect::<Vec<&str>>();
         assert_eq!(v[0], "one");
         assert_eq!(v[1], "two");
         assert_eq!(v[2], "three");
@@ -362,7 +376,7 @@ mod test {
     #[test]
     fn split_line_with_bad_quotes() {
         let line = "one two \"three";
-        let v = super::split_line(line);
+        let v = super::split_line(line).collect::<Vec<&str>>();
         assert_eq!(v[0], "one");
         assert_eq!(v[1], "two");
         assert_eq!(v[2], "three");
