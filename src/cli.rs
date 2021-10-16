@@ -195,7 +195,7 @@ impl<R: Default> Cli<R> {
             self.print_error(&error);
         }
         if self.need_print_help {
-            self.print_help();
+            self.format_help();
         }
         Err(error)
     }
@@ -204,14 +204,18 @@ impl<R: Default> Cli<R> {
         println!("{}", error)
     }
 
-    fn print_help(&self) {
-        let mut buffer = std::io::BufWriter::new(std::io::stdout());
+    fn format_help(&self) -> String {
+        let mut buffer = String::new();
         self.commands
-            .keys()
-            .for_each(|key| {
-                let _ = buffer.write(key.as_bytes());
+            .iter()
+            .for_each(|(key, cmd)| {
+                buffer.push_str(
+                    format!("\n{:<20}| {}", key.as_str(), cmd.description.as_ref().unwrap())
+                    // clone().unwrap_or("".to_owned()))
+                        .as_str()
+                );
             });
-        let _ = buffer.flush();
+        buffer
     }
 }
 
@@ -341,7 +345,47 @@ fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, Stri
 
 #[cfg(test)]
 mod test {
-    use crate::{ArgType, ArgValue};
+    use crate::{ArgType, ArgValue, Cli, CommandBuilder, Parameter};
+
+    #[test]
+    fn print_help() {
+        let cli = Cli::<()>::builder()
+        .command(CommandBuilder::with_name("cmd")
+            .parameter(Parameter::with_name("bool")
+                .value_type(ArgType::Bool)
+                .alias("b")
+                .alias("bb")
+                .description("Some about bool")
+            )
+            .parameter(Parameter::with_name("int")
+                .value_type(ArgType::Int)
+                .alias("i")
+                .alias("ii")
+                .description("Some about int")
+            )
+            .parameter(Parameter::with_name("float")
+                .value_type(ArgType::Float)
+                .alias("f")
+                .alias("ff")
+                .description("Some about float")
+            )
+            .parameter(Parameter::with_name("string")
+                .value_type(ArgType::String)
+                .alias("s")
+                .alias("ss")
+                .description("Some about string")
+            )
+            .description("Main command for all other commands")
+            .use_value(ArgType::Bool)
+        )
+        .command(CommandBuilder::with_name("other_cmd")
+            .description("Some other command")
+            .use_value(ArgType::Bool))
+        .build();
+
+        println!("{}", cli.format_help());
+        assert!(true)
+    }
 
     #[test]
     fn split_line() {

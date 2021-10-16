@@ -23,6 +23,7 @@ pub struct CommandBuilder<R> {
     handler: Option<CallBack<R>>
 }
 
+#[derive(Default)]
 pub(super) struct Command<R> {
     pub(super) subcommands: HashMap<String, Rc<Command<R>>>,
     pub(super) value: Option<ArgType>,
@@ -72,6 +73,11 @@ impl<R: Default> CommandBuilder<R> {
     /// Set command value type if required. 
     pub fn use_value(mut self, value_type: ArgType) -> Self {
         self.value = Some(value_type);
+        self
+    }
+
+    pub fn description(mut self, text: &str) -> Self {
+        self.description = Some(text.to_owned());
         self
     }
 }
