@@ -3,9 +3,9 @@ use super::context::*;
 use super::error::*;
 use super::parameter::*;
 
-use std::io::Write;
 use std::{
     borrow::BorrowMut,
+    cell::RefCell,
     fmt::Debug,
     rc::Rc,
     str::FromStr,
@@ -36,6 +36,11 @@ use std::{
 /// ```
 #[derive(Debug)]
 pub struct Cli<R: Default> {
+    data: Rc<RefCell<CliData<R>>>
+}
+
+#[derive(Debug)]
+pub struct CliData<R: Default> {
     commands: HashMap<String, Rc<Command<R>>>,
     need_print_error: bool,
     need_print_help: bool,
@@ -53,6 +58,10 @@ impl<R: Default> Cli<R> {
         CliBuilder::default()
     }
 
+    pub fn add_command(self, command_builder: CommandBuilder<R>) {
+        add_command(&mut (*self.data).borrow_mut().commands, command_builder);
+    }
+
     /// Execute _line_ 
     pub fn exec_line(&self, line: &str) -> Result<R, Error> {
         let mut ctx = Context::default();
@@ -65,7 +74,7 @@ impl<R: Default> Cli<R> {
                 ParseState::ReadFirst => {
                     if arg.starts_with("--") || arg.starts_with("-") {
                         return self.make_error(Kind::CantExecuteParameter, arg.to_string());
-                    } else if let Some(cmd) = self.commands.get(arg) {
+                    } else if let Some(cmd) = (*self.data).borrow().commands.get(arg) {
                         ctx.units.push(ContextUnit {
                             command: (arg, cmd.clone()),
                             parameters: Default::default(),
@@ -191,11 +200,12 @@ impl<R: Default> Cli<R> {
 
     fn make_error(&self, kind: Kind, details: String) -> Result<R, Error> {
         let error = Error { kind, details };
-        if self.need_print_error {
+        if (*self.data).borrow().need_print_error {
             self.print_error(&error);
         }
-        if self.need_print_help {
-            self.format_help();
+        if (*self.data).borrow().need_print_help {
+            let buffer = (*self.data).borrow().format_help();
+            Cli::<R>::print_help(buffer.as_str());
         }
         Err(error)
     }
@@ -204,6 +214,12 @@ impl<R: Default> Cli<R> {
         println!("{}", error)
     }
 
+    fn print_help(buffer: &str) {
+        println!("{}", buffer);
+    }
+}
+
+impl<R: Default> CliData<R> {
     fn format_help(&self) -> String {
         let mut buffer = String::new();
         self.commands
@@ -211,7 +227,6 @@ impl<R: Default> Cli<R> {
             .for_each(|(key, cmd)| {
                 buffer.push_str(
                     format!("\n{:<20}| {}", key.as_str(), cmd.description.as_ref().unwrap())
-                    // clone().unwrap_or("".to_owned()))
                         .as_str()
                 );
             });
@@ -227,7 +242,7 @@ pub struct CliBuilder<R> {
     need_print_help: bool,
 }
 
-impl<R: Default> CliBuilder<R> {
+impl<R: Default + 'static> CliBuilder<R> {
     /// Add command
     pub fn command(mut self, cmd: CommandBuilder<R>) -> Self {
         add_command(self.commands.borrow_mut(), cmd);
@@ -248,11 +263,26 @@ impl<R: Default> CliBuilder<R> {
 
     /// Build and return **Cli** object.
     pub fn build(self) -> Cli<R> {
-        Cli {
+        let cli_data = Rc::new(RefCell::new(CliData {
             commands: self.commands,
             need_print_error: self.need_print_error,
             need_print_help: self.need_print_help,
+        }));
+
+        if cli_data.borrow().need_print_help {
+            let cd = cli_data.clone();
+            let cb = CommandBuilder::with_name("help")
+                .handler(move |_|{
+                    let buffer = (*cd).borrow().format_help();
+                    println!("{}", buffer);
+                    R::default()
+                })
+                .description("This help");
+
+            add_command((*cli_data).borrow_mut().commands.borrow_mut(), cb);
         }
+
+        Cli{ data: cli_data }
     }
 }
 
@@ -348,44 +378,46 @@ mod test {
     use crate::{ArgType, ArgValue, Cli, CommandBuilder, Parameter};
 
     #[test]
-    fn print_help() {
-        let cli = Cli::<()>::builder()
-        .command(CommandBuilder::with_name("cmd")
-            .parameter(Parameter::with_name("bool")
-                .value_type(ArgType::Bool)
-                .alias("b")
-                .alias("bb")
-                .description("Some about bool")
-            )
-            .parameter(Parameter::with_name("int")
-                .value_type(ArgType::Int)
-                .alias("i")
-                .alias("ii")
-                .description("Some about int")
-            )
-            .parameter(Parameter::with_name("float")
-                .value_type(ArgType::Float)
-                .alias("f")
-                .alias("ff")
-                .description("Some about float")
-            )
-            .parameter(Parameter::with_name("string")
-                .value_type(ArgType::String)
-                .alias("s")
-                .alias("ss")
-                .description("Some about string")
-            )
-            .description("Main command for all other commands")
-            .use_value(ArgType::Bool)
+fn print_help() {
+    let cli = Cli::<()>::builder()
+    .print_help(true)
+    .command(CommandBuilder::with_name("cmd")
+        .parameter(Parameter::with_name("bool")
+            .value_type(ArgType::Bool)
+            .alias("b")
+            .alias("bb")
+            .description("Some about bool")
         )
-        .command(CommandBuilder::with_name("other_cmd")
-            .description("Some other command")
-            .use_value(ArgType::Bool))
-        .build();
+        .parameter(Parameter::with_name("int")
+            .value_type(ArgType::Int)
+            .alias("i")
+            .alias("ii")
+            .description("Some about int")
+        )
+        .parameter(Parameter::with_name("float")
+            .value_type(ArgType::Float)
+            .alias("f")
+            .alias("ff")
+            .description("Some about float")
+        )
+        .parameter(Parameter::with_name("string")
+            .value_type(ArgType::String)
+            .alias("s")
+            .alias("ss")
+            .description("Some about string")
+        )
+        .description("Main command for all other commands")
+        .use_value(ArgType::Bool)
+    )
+    .command(CommandBuilder::with_name("other_cmd")
+        .description("Some other command")
+        .use_value(ArgType::Bool))
+    .build();
 
-        println!("{}", cli.format_help());
-        assert!(true)
-    }
+    // cli.exec_line("help").unwrap();
+    assert!(cli.exec_line("bad").is_err());
+    assert!(true)
+}
 
     #[test]
     fn split_line() {
