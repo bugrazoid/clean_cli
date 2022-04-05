@@ -7,16 +7,16 @@ use std::rc::Rc;
 use std::borrow::BorrowMut;
 use std::fmt::Formatter;
 
-type CallBack<R> = RefCell<Box<dyn FnMut(Context<R>) -> R>>;
-
 const NO_DESCRIPTION: &str = "";
+
+type CallBack<R> = RefCell<Box<dyn FnMut(Context<R>) -> R>>;
 
 /// **CommandBuilder** is a helper using for build command object.
 #[derive(Default)]
 pub struct CommandBuilder<R> {
     name: String,
     aliases: Vec<String>,
-    subcommands: HashMap<String, Rc<Command<R>>>,
+    subcommands: Vec<CommandBuilder<R>>,
     value: Option<ArgType>,
     description: Option<String>,
     parameters: HashMap<String, Rc<Parameter>>,
@@ -52,7 +52,7 @@ impl<R: Default> CommandBuilder<R> {
     /// # Panic
     /// Panics if command has no executor or command with same name already exist
     pub fn subcommand(mut self, command: CommandBuilder<R>) -> Self {
-        add_command(self.subcommands.borrow_mut(), command);
+        self.subcommands.push(command);
         self
     }
 
@@ -80,33 +80,68 @@ impl<R: Default> CommandBuilder<R> {
         self.description = Some(text.to_owned());
         self
     }
+
+    fn build(self) -> Command<R> {
+        if self.value.is_none()
+            & self.handler.is_none()
+            & self.subcommands.is_empty() {
+            panic!("command \"{}: {}\" has no value or handler or subcommand",
+                &self.name, self.description.unwrap_or(NO_DESCRIPTION.to_string())
+            )
+        }
+
+        Command {
+            subcommands: Self::build_subcommands(self.subcommands),
+            value: self.value,
+            description: self.description,
+            parameters: self.parameters,
+            exec: self.handler,
+        }
+    }
+
+    fn build_subcommands(subcommands: Vec<CommandBuilder<R>>) -> HashMap<String, Rc<Command<R>>> {
+        let mut subcommands = subcommands;
+        let mut commands = <HashMap<String, Rc<Command<R>>>>::default();
+
+        while let Some(command_builder) = subcommands.pop() {
+            add_command(&mut commands, command_builder, false);
+        }
+        
+        commands
+    }
 }
 
-pub(super) fn add_command<R>(commands: &mut HashMap<String, Rc<Command<R>>>, command_builder: CommandBuilder<R>) {
+pub(super) fn format_help<R: Default>(commands: & HashMap<String, Rc<Command<R>>>) -> String {
+    let mut buffer = String::new();
+        commands
+            .iter()
+            .for_each(|(key, cmd)| {
+                buffer.push_str(
+                    format!("\n{:<20}| {}", key.as_str(), cmd.description.as_ref().unwrap())
+                        .as_str()
+                );
+            });
+        buffer
+}
+
+pub(super) fn add_command<R: Default>(
+    commands: &mut HashMap<String, Rc<Command<R>>>, 
+    command_builder: CommandBuilder<R>,
+    need_print_help: bool) 
+{
+    let mut command_builder = command_builder;
     if let Some(exist) = commands.get(&command_builder.name) {
         panic!("command \"{}: {}\" already exist\nand can not be replaced with command \"{}: {}\"",
-               &command_builder.name, exist.description.as_ref().unwrap_or(&NO_DESCRIPTION.to_string()),
-               &command_builder.name, command_builder.description.unwrap_or(NO_DESCRIPTION.to_string()));
+            &command_builder.name, exist.description.as_ref().unwrap_or(&NO_DESCRIPTION.to_string()),
+            &command_builder.name, command_builder.description.unwrap_or(NO_DESCRIPTION.to_string()));
     }
 
-    if command_builder.value.is_none()
-        & command_builder.handler.is_none()
-        & command_builder.subcommands.is_empty() {
-        panic!("command \"{}: {}\" has no value or handler or subcommand",
-            &command_builder.name, command_builder.description.unwrap_or(NO_DESCRIPTION.to_string())
-        )
-    }
-
-    let command = Rc::new(Command {
-        subcommands: command_builder.subcommands,
-        value: command_builder.value,
-        description: command_builder.description,
-        parameters: command_builder.parameters,
-        exec: command_builder.handler,
-    });
-
-    commands.insert(command_builder.name, command.clone());
+    let name = command_builder.name.clone();
     let mut aliases = command_builder.aliases;
+    command_builder.aliases = <Vec<String>>::default();
+
+    let command = Rc::new(command_builder.build());
+    commands.insert(name, command.clone());
     while let Some(alias) = aliases.pop() {
         commands.insert(alias, command.clone());
     };
@@ -136,6 +171,18 @@ impl<R> std::fmt::Debug for self::Command<R> {
             .field("value", &self.value)
             .field("options", &self.parameters)
             .field("subcommands", &self.subcommands)
+            .field("description", &self.description)
+            .finish()
+    }
+}
+
+impl<R> std::fmt::Debug for self::CommandBuilder<R> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct(stringify!(CommandBuilder))
+            .field("value", &self.value)
+            .field("options", &self.parameters)
+            .field("subcommands", &self.subcommands)
+            .field("description", &self.description)
             .finish()
     }
 }

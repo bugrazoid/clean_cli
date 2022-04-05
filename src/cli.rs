@@ -58,10 +58,6 @@ impl<R: Default> Cli<R> {
         CliBuilder::default()
     }
 
-    pub fn add_command(self, command_builder: CommandBuilder<R>) {
-        add_command(&mut (*self.data).borrow_mut().commands, command_builder);
-    }
-
     /// Execute _line_ 
     pub fn exec_line(&self, line: &str) -> Result<R, Error> {
         let mut ctx = Context::default();
@@ -204,7 +200,8 @@ impl<R: Default> Cli<R> {
             self.print_error(&error);
         }
         if (*self.data).borrow().need_print_help {
-            let buffer = (*self.data).borrow().format_help();
+            let commands = &self.data.borrow().commands;
+            let buffer = format_help(commands);
             Cli::<R>::print_help(buffer.as_str());
         }
         Err(error)
@@ -219,25 +216,10 @@ impl<R: Default> Cli<R> {
     }
 }
 
-impl<R: Default> CliData<R> {
-    fn format_help(&self) -> String {
-        let mut buffer = String::new();
-        self.commands
-            .iter()
-            .for_each(|(key, cmd)| {
-                buffer.push_str(
-                    format!("\n{:<20}| {}", key.as_str(), cmd.description.as_ref().unwrap())
-                        .as_str()
-                );
-            });
-        buffer
-    }
-}
-
 /// **CliBuilder** is a helper using for build `Cli`.
 #[derive(Default, Debug)]
 pub struct CliBuilder<R> {
-    commands: HashMap<String, Rc<Command<R>>>,
+    commands: Vec<CommandBuilder<R>>,
     need_print_error: bool,
     need_print_help: bool,
 }
@@ -245,7 +227,7 @@ pub struct CliBuilder<R> {
 impl<R: Default + 'static> CliBuilder<R> {
     /// Add command
     pub fn command(mut self, cmd: CommandBuilder<R>) -> Self {
-        add_command(self.commands.borrow_mut(), cmd);
+        self.commands.push(cmd);
         self
     }
 
@@ -263,23 +245,31 @@ impl<R: Default + 'static> CliBuilder<R> {
 
     /// Build and return **Cli** object.
     pub fn build(self) -> Cli<R> {
+        let mut commands = <HashMap<String, Rc<Command<R>>>>::default();
+
+        let mut command_builders = self.commands;
+        while let Some(command_builder) = command_builders.pop() {
+            add_command(&mut commands, command_builder, self.need_print_help);
+        }
+
         let cli_data = Rc::new(RefCell::new(CliData {
-            commands: self.commands,
+            commands,
             need_print_error: self.need_print_error,
             need_print_help: self.need_print_help,
         }));
 
-        if cli_data.borrow().need_print_help {
+        if self.need_print_error {
             let cd = cli_data.clone();
             let cb = CommandBuilder::with_name("help")
-                .handler(move |_|{
-                    let buffer = (*cd).borrow().format_help();
-                    println!("{}", buffer);
+                .handler(move |_| {
+                    let commands = &cd.borrow().commands;
+                    let help_text = format_help(commands);
+                    println!("{}", help_text);
                     R::default()
                 })
                 .description("This help");
 
-            add_command((*cli_data).borrow_mut().commands.borrow_mut(), cb);
+            add_command((*cli_data).borrow_mut().commands.borrow_mut(), cb, self.need_print_help);
         }
 
         Cli{ data: cli_data }
