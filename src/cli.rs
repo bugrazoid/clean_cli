@@ -516,7 +516,7 @@ fn print_help() {
 
         let mut rnd = thread_rng();
         for _ in 0..100 {
-            let num: f64 = rnd.gen_range(f64::MIN .. f64::MAX);
+            let num: f64 = rnd.gen_range(f64::MIN / 2.  .. f64::MAX / 2.);
             numbers.push((num.to_string(), num));
         }
         for (arg, state) in numbers.iter() {
