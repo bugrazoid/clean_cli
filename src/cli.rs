@@ -6,18 +6,15 @@ use super::parameter::*;
 use std::{
     borrow::BorrowMut,
     cell::RefCell,
+    collections::{HashMap, VecDeque},
     fmt::Debug,
     rc::Rc,
     str::FromStr,
-    collections::{
-        HashMap,
-        VecDeque
-    }
 };
 
 ///  __Cli__ is a central unit that contains all possible commands, arguments and handlers.
 /// To create instance using build pattern. Generic parameter using for return values from handlers.
-/// 
+///
 /// # Example
 ///
 /// ```rust
@@ -36,7 +33,7 @@ use std::{
 /// ```
 #[derive(Debug)]
 pub struct Cli<R: Default> {
-    data: Rc<RefCell<CliData<R>>>
+    data: Rc<RefCell<CliData<R>>>,
 }
 
 #[derive(Debug)]
@@ -46,20 +43,20 @@ pub struct CliData<R: Default> {
     need_print_help: bool,
 }
 
-enum ParseState {
-    ReadFirst,
-    ReadNext,
-    ParametersReaded{ params: VecDeque<Rc<Parameter>> },
-}
-
 impl<R: Default> Cli<R> {
     /// Create builder
     pub fn builder() -> CliBuilder<R> {
         CliBuilder::default()
     }
 
-    /// Execute _line_ 
+    /// Execute _line_
     pub fn exec_line(&self, line: &str) -> Result<R, Error> {
+        enum ParseState {
+            ReadFirst,
+            ReadNext,
+            ParametersReaded { params: VecDeque<Rc<Parameter>> },
+        }
+
         let mut ctx = Context::default();
         let mut state = ParseState::ReadFirst;
         let mut pos = 0;
@@ -92,12 +89,14 @@ impl<R: Default> Cli<R> {
                         if let Some(p) = cmd.parameters.get(arg) {
                             if let ArgType::Bool = p.value_type {
                                 if let Some(p) = last_unit.command.1.parameters.get(arg) {
-                                    last_unit.parameters.insert(p.name.clone(), (p.clone(), ArgValue::Bool(true)));
+                                    last_unit
+                                        .parameters
+                                        .insert(p.name.clone(), (p.clone(), ArgValue::Bool(true)));
                                 }
                             } else {
                                 let mut params = VecDeque::with_capacity(1);
                                 params.push_back(p.clone());
-                                new_state = Some(ParseState::ParametersReaded{ params });
+                                new_state = Some(ParseState::ParametersReaded { params });
                             }
                         } else {
                             return self.make_error(Kind::NotParameter, arg.to_string());
@@ -110,10 +109,12 @@ impl<R: Default> Cli<R> {
                             if let Some(p) = cmd.parameters.get(&s) {
                                 if let ArgType::Bool = p.value_type {
                                     if let Some(p) = last_unit.command.1.parameters.get(&s) {
-                                        last_unit.parameters.insert(p.name.clone(), (p.clone(), ArgValue::Bool(true)));
+                                        last_unit.parameters.insert(
+                                            p.name.clone(),
+                                            (p.clone(), ArgValue::Bool(true)),
+                                        );
                                     }
-                                }
-                                else {
+                                } else {
                                     params.push_back(p.clone());
                                 }
                             } else {
@@ -122,16 +123,16 @@ impl<R: Default> Cli<R> {
                         }
 
                         if !params.is_empty() {
-                            new_state = Some(ParseState::ParametersReaded{
-                                params
-                            });
+                            new_state = Some(ParseState::ParametersReaded { params });
                         }
                     } else if let Some(v) = cmd.value.as_ref() {
                         match parse_arg(v.clone(), arg) {
                             Ok(value) => {
                                 last_unit.value = Some(value);
                             }
-                            Err(details) => return self.make_error(Kind::ValueParseFailed, details)
+                            Err(details) => {
+                                return self.make_error(Kind::ValueParseFailed, details)
+                            }
                         };
                     } else if let Some(sub) = cmd.subcommands.get(arg) {
                         ctx.units.push(ContextUnit {
@@ -150,17 +151,19 @@ impl<R: Default> Cli<R> {
                     }
                 }
 
-                ParseState::ParametersReaded{ mut params} => {
+                ParseState::ParametersReaded { mut params } => {
                     let last_unit = &mut ctx.units[pos];
 
-                    let param= params.pop_front().unwrap();
+                    let param = params.pop_front().unwrap();
                     match parse_arg(param.value_type.clone(), arg) {
                         Ok(value) => {
-                            last_unit.parameters.insert(param.name.clone(), (param.clone(), value));
+                            last_unit
+                                .parameters
+                                .insert(param.name.clone(), (param.clone(), value));
                             if params.is_empty() {
                                 state = ParseState::ReadNext;
                             } else {
-                                state = ParseState::ParametersReaded{ params };
+                                state = ParseState::ParametersReaded { params };
                             }
                         }
                         Err(details) => {
@@ -171,23 +174,35 @@ impl<R: Default> Cli<R> {
             }
         }
 
-        if let ParseState::ParametersReaded{mut params} = state {
+        if let ParseState::ParametersReaded { mut params } = state {
             if params.len() > 1 {
-                return self.make_error(Kind::ParserError, format!("Wrong params value: {}", params.len()));
+                return self.make_error(
+                    Kind::ParserError,
+                    format!("Wrong params value: {}", params.len()),
+                );
             }
             let param = params.pop_back().unwrap();
             match param.value_type {
                 ArgType::Bool => {}
-                _ => return self.make_error(Kind::ParameterValueMissed, format!("parametr \"{}\" has no value", param.name))
+                _ => {
+                    return self.make_error(
+                        Kind::ParameterValueMissed,
+                        format!("parametr \"{}\" has no value", param.name),
+                    )
+                }
             }
         };
 
         if let Some(cmd) = ctx.units.last() {
+            let name = cmd.command.0;
             let cmd = cmd.command.1.clone();
             if let Some(f) = &cmd.exec {
                 return Ok(f.borrow_mut()(ctx));
             } else {
-                return self.make_error(Kind::CantExecuteCommand, format!(""));
+                return self.make_error(
+                    Kind::CantExecuteCommand,
+                    format!("No handler for command: {}", name),
+                );
             }
         }
 
@@ -269,31 +284,36 @@ impl<R: Default + 'static> CliBuilder<R> {
                 })
                 .description("This help");
 
-            add_command((*cli_data).borrow_mut().commands.borrow_mut(), cb, self.need_print_help);
+            add_command(
+                (*cli_data).borrow_mut().commands.borrow_mut(),
+                cb,
+                self.need_print_help,
+            );
         }
 
-        Cli{ data: cli_data }
+        Cli { data: cli_data }
     }
 }
 
-enum LineParseState {
-    EndWord,
-    StartWord{start: usize, quote: Option<char>}
-}
-
 fn split_line(line: &str) -> impl Iterator<Item = &str> {
+    enum LineParseState {
+        EndWord,
+        StartWord { start: usize, quote: Option<char> },
+    }
+
     let mut state = LineParseState::EndWord;
     let line_len = line.len();
-    let result = line.char_indices()
+    let result = line
+        .char_indices()
         .map(move |(i, c)| {
             let mut result: Option<_> = None;
             if !c.is_whitespace() {
                 match state {
                     LineParseState::EndWord => {
                         let has_quote = c == '\'' || c == '\"';
-                        state = LineParseState::StartWord{
-                            start: if has_quote { i+1 } else { i }, 
-                            quote: if has_quote { Some(c) } else { None }
+                        state = LineParseState::StartWord {
+                            start: if has_quote { i + 1 } else { i },
+                            quote: if has_quote { Some(c) } else { None },
                         }
                     }
                     LineParseState::StartWord { start, quote } => {
@@ -303,23 +323,23 @@ fn split_line(line: &str) -> impl Iterator<Item = &str> {
                                 state = LineParseState::EndWord;
                             }
                         }
-                    },
+                    }
                 }
 
-                if line_len == i+1 {
+                if line_len == i + 1 {
                     if let LineParseState::StartWord { start, quote: _ } = state {
                         result = Some(&line[start..]);
                     }
                 }
             } else {
                 match state {
-                    LineParseState::EndWord => {},
+                    LineParseState::EndWord => {}
                     LineParseState::StartWord { start, quote } => {
                         if quote.is_none() {
                             result = Some(&line[start..i]);
                             state = LineParseState::EndWord;
                         }
-                    },
+                    }
                 }
             }
             result
@@ -336,26 +356,27 @@ fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, Stri
 
     let value: ArgValue = match arg_type {
         ArgType::Bool => match arg {
-            "true" | "yes" | "1" | "on"  => ArgValue::Bool(true),
+            "true" | "yes" | "1" | "on" => ArgValue::Bool(true),
             "false" | "no" | "0" | "off" => ArgValue::Bool(false),
-            _ => return Err(format!("\"{}\" is not a boolean value. \
+            _ => {
+                return Err(format!(
+                    "\"{}\" is not a boolean value. \
                                     Use \"1\", \"true\", \"yes\", \"on\" for true, \
-                                    and \"0\", \"false\", \"no\", \"off\" for false", arg))
-        }
-
-        ArgType::Int => {
-            match i64::from_str(arg) {
-                Ok(i) => ArgValue::Int(i),
-                Err(e) => return Err(format!("Parse int error: {}", e))
+                                    and \"0\", \"false\", \"no\", \"off\" for false",
+                    arg
+                ))
             }
-        }
+        },
 
-        ArgType::Float => {
-            match f64::from_str(arg) {
-                Ok(f) => ArgValue::Float(f),
-                Err(e) => return Err(format!("Parse float error: {}", e))
-            }
-        }
+        ArgType::Int => match i64::from_str(arg) {
+            Ok(i) => ArgValue::Int(i),
+            Err(e) => return Err(format!("Parse int error: {}", e)),
+        },
+
+        ArgType::Float => match f64::from_str(arg) {
+            Ok(f) => ArgValue::Float(f),
+            Err(e) => return Err(format!("Parse float error: {}", e)),
+        },
 
         ArgType::String => ArgValue::String(arg.to_string()),
     };
@@ -368,46 +389,53 @@ mod test {
     use crate::{ArgType, ArgValue, Cli, CommandBuilder, Parameter};
 
     #[test]
-fn print_help() {
-    let cli = Cli::<()>::builder()
-    .print_help(true)
-    .command(CommandBuilder::with_name("cmd")
-        .parameter(Parameter::with_name("bool")
-            .value_type(ArgType::Bool)
-            .alias("b")
-            .alias("bb")
-            .description("Some about bool")
-        )
-        .parameter(Parameter::with_name("int")
-            .value_type(ArgType::Int)
-            .alias("i")
-            .alias("ii")
-            .description("Some about int")
-        )
-        .parameter(Parameter::with_name("float")
-            .value_type(ArgType::Float)
-            .alias("f")
-            .alias("ff")
-            .description("Some about float")
-        )
-        .parameter(Parameter::with_name("string")
-            .value_type(ArgType::String)
-            .alias("s")
-            .alias("ss")
-            .description("Some about string")
-        )
-        .description("Main command for all other commands")
-        .use_value(ArgType::Bool)
-    )
-    .command(CommandBuilder::with_name("other_cmd")
-        .description("Some other command")
-        .use_value(ArgType::Bool))
-    .build();
+    fn print_help() {
+        let cli = Cli::<()>::builder()
+            .print_help(true)
+            .command(
+                CommandBuilder::with_name("cmd")
+                    .parameter(
+                        Parameter::with_name("bool")
+                            .value_type(ArgType::Bool)
+                            .alias("b")
+                            .alias("bb")
+                            .description("Some about bool"),
+                    )
+                    .parameter(
+                        Parameter::with_name("int")
+                            .value_type(ArgType::Int)
+                            .alias("i")
+                            .alias("ii")
+                            .description("Some about int"),
+                    )
+                    .parameter(
+                        Parameter::with_name("float")
+                            .value_type(ArgType::Float)
+                            .alias("f")
+                            .alias("ff")
+                            .description("Some about float"),
+                    )
+                    .parameter(
+                        Parameter::with_name("string")
+                            .value_type(ArgType::String)
+                            .alias("s")
+                            .alias("ss")
+                            .description("Some about string"),
+                    )
+                    .description("Main command for all other commands")
+                    .use_value(ArgType::Bool),
+            )
+            .command(
+                CommandBuilder::with_name("other_cmd")
+                    .description("Some other command")
+                    .use_value(ArgType::Bool),
+            )
+            .build();
 
-    // cli.exec_line("help").unwrap();
-    assert!(cli.exec_line("bad").is_err());
-    assert!(true)
-}
+        // cli.exec_line("help").unwrap();
+        assert!(cli.exec_line("bad").is_err());
+        assert!(true)
+    }
 
     #[test]
     fn split_line() {
@@ -417,7 +445,7 @@ fn print_help() {
         assert_eq!(v[1], "two");
         assert_eq!(v[2], "three");
     }
-    
+
     #[test]
     fn split_line_with_quotes() {
         let line = "one \"two\" three";
@@ -455,22 +483,26 @@ fn print_help() {
             match result {
                 Ok(arg_value) => match arg_value {
                     ArgValue::Bool(v) => assert_eq!(v, state),
-                    _ => panic!("bad type")
-                }
-                Err(err) => panic!("{:?}", err)
+                    _ => panic!("bad type"),
+                },
+                Err(err) => panic!("{:?}", err),
             }
         };
-         let true_args = ["true", "1", "yes", "on"];
-        for arg in true_args.iter() { f(arg, true); }
-         let false_args = ["false", "0", "no", "off"];
-        for arg in false_args.iter() { f(arg, false); }
+        let true_args = ["true", "1", "yes", "on"];
+        for arg in true_args.iter() {
+            f(arg, true);
+        }
+        let false_args = ["false", "0", "no", "off"];
+        for arg in false_args.iter() {
+            f(arg, false);
+        }
     }
-     #[test]
+    #[test]
     fn parse_arg_bool_error() {
         let result = super::parse_arg(ArgType::Bool, "not_a_bool");
         match result {
             Ok(arg_value) => panic!("error expected, but got this: {:?}", arg_value),
-            Err(err) => assert!(!err.is_empty())
+            Err(err) => assert!(!err.is_empty()),
         }
     }
 
@@ -478,7 +510,7 @@ fn print_help() {
     fn parse_arg_int() {
         use rand::prelude::*;
 
-        let mut numbers = Vec::<(String,i64)>::with_capacity(12);
+        let mut numbers = Vec::<(String, i64)>::with_capacity(12);
         numbers.push((i64::MIN.to_string(), i64::MIN));
         numbers.push((i64::MAX.to_string(), i64::MAX));
         for _ in 0..100 {
@@ -490,9 +522,9 @@ fn print_help() {
             match result {
                 Ok(arg_value) => match arg_value {
                     ArgValue::Int(v) => assert_eq!(v, *state),
-                    _ => panic!("bad type")
-                }
-                Err(err) => panic!("{:?}", err)
+                    _ => panic!("bad type"),
+                },
+                Err(err) => panic!("{:?}", err),
             }
         }
     }
@@ -502,7 +534,7 @@ fn print_help() {
         let result = super::parse_arg(ArgType::Int, "not_int");
         match result {
             Ok(arg_value) => panic!("error expected, but got this: {:?}", arg_value),
-            Err(err) => assert!(!err.is_empty())
+            Err(err) => assert!(!err.is_empty()),
         }
     }
 
@@ -510,13 +542,13 @@ fn print_help() {
     fn parse_arg_float() {
         use rand::prelude::*;
 
-        let mut numbers = Vec::<(String,f64)>::with_capacity(12);
+        let mut numbers = Vec::<(String, f64)>::with_capacity(12);
         numbers.push((f64::MIN.to_string(), f64::MIN));
         numbers.push((f64::MAX.to_string(), f64::MAX));
 
         let mut rnd = thread_rng();
         for _ in 0..100 {
-            let num: f64 = rnd.gen_range(f64::MIN / 2.  .. f64::MAX / 2.);
+            let num: f64 = rnd.gen_range(f64::MIN / 2.0..f64::MAX / 2.0);
             numbers.push((num.to_string(), num));
         }
         for (arg, state) in numbers.iter() {
@@ -527,9 +559,9 @@ fn print_help() {
                         println!("arg: {} == v: {}", arg, v);
                         assert_eq!(v, *state)
                     }
-                    _ => panic!("bad type")
-                }
-                Err(err) => panic!("{:?}", err)
+                    _ => panic!("bad type"),
+                },
+                Err(err) => panic!("{:?}", err),
             }
         }
     }
@@ -539,7 +571,7 @@ fn print_help() {
         let result = super::parse_arg(ArgType::Float, "not_float");
         match result {
             Ok(arg_value) => panic!("error expected, but got this: {:?}", arg_value),
-            Err(err) => assert!(!err.is_empty())
+            Err(err) => assert!(!err.is_empty()),
         }
     }
 }

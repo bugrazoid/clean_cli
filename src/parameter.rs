@@ -4,7 +4,7 @@ pub enum ArgValue {
     Bool(bool),
     Int(i64),
     Float(f64),
-    String(String)
+    String(String),
 }
 
 /// Set value type for commands and parameters
@@ -13,7 +13,7 @@ pub enum ArgType {
     Bool,
     Int,
     Float,
-    String
+    String,
 }
 
 impl Default for ArgType {
@@ -27,7 +27,7 @@ impl Default for ArgType {
 pub struct Parameter {
     pub(super) name: String,
     pub(super) value_type: ArgType,
-    pub(super) description: String
+    pub(super) description: String,
 }
 
 /// Buildr for command parameter
@@ -36,7 +36,7 @@ pub struct ParameterBuilder<'a> {
     pub(super) name: String,
     pub(super) aliases: Vec<String>,
     pub(super) description: Option<&'a str>,
-    pub(super) value_type: ArgType
+    pub(super) value_type: ArgType,
 }
 
 impl Parameter {
@@ -44,8 +44,7 @@ impl Parameter {
     pub fn with_name(name: &str) -> ParameterBuilder {
         ParameterBuilder {
             name: name.to_string(),
-            ..
-            Default::default()
+            ..Default::default()
         }
     }
 }

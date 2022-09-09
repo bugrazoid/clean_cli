@@ -14,12 +14,16 @@ pub enum Kind {
 #[derive(Debug)]
 pub struct Error {
     pub(super) kind: Kind,
-    pub(super) details: String
+    pub(super) details: String,
 }
 
 impl Error {
-    pub fn kind(&self) -> Kind { self.kind.clone() }
-    pub fn description(&self) -> &str { self.details.as_str() }
+    pub fn kind(&self) -> Kind {
+        self.kind.clone()
+    }
+    pub fn description(&self) -> &str {
+        self.details.as_str()
+    }
 }
 
 impl std::error::Error for self::Error {}
@@ -45,7 +49,7 @@ impl Kind {
             Kind::ValueParseFailed => "Value parse failed",
             Kind::ParameterValueMissed => "Missed parameter value",
             Kind::ParserError => "Parser error. Make an issue",
-            Kind::CantExecuteCommand => "Can't execute command, because subcommand not provided"
+            Kind::CantExecuteCommand => "Can't execute command, because subcommand not provided",
         }
     }
 }
