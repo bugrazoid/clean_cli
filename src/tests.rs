@@ -1325,3 +1325,29 @@ fn command_with_mixed_params_and_value() {
         Err(err) => panic!("{:?}", err),
     }
 }
+
+#[test]
+fn command_help() {
+    let cli = Cli::<()>::builder()
+        .print_help(true)
+        .command(
+            CommandBuilder::with_name("cmd")
+                .use_value(ArgType::Bool)
+                .parameter(
+                    Parameter::with_name("bool")
+                        .value_type(ArgType::Bool)
+                        .alias("b")
+                        .alias("bb"),
+                )
+                .parameter(
+                    Parameter::with_name("int")
+                        .value_type(ArgType::Int)
+                        .alias("i")
+                        .alias("ii"),
+                ),
+        )
+        .command(CommandBuilder::with_name("another_cmd").use_value(ArgType::Bool))
+        .build();
+
+    assert!(cli.exec_line("help").is_ok());
+}

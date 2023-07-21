@@ -273,7 +273,7 @@ impl<R: Default + 'static> CliBuilder<R> {
             need_print_help: self.need_print_help,
         }));
 
-        if self.need_print_error {
+        if self.need_print_help {
             let cd = cli_data.clone();
             let cb = CommandBuilder::with_name("help")
                 .handler(move |_| {

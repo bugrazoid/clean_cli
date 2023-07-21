@@ -118,14 +118,11 @@ impl<R: Default> CommandBuilder<R> {
 pub(super) fn format_help<R: Default>(commands: &HashMap<String, Rc<Command<R>>>) -> String {
     let mut buffer = String::new();
     commands.iter().for_each(|(key, cmd)| {
-        buffer.push_str(
-            format!(
-                "\n{:<20}| {}",
-                key.as_str(),
-                cmd.description.as_ref().unwrap()
-            )
-            .as_str(),
-        );
+        let description = match cmd.description.as_ref() {
+            Some(s) => s.as_str(),
+            None => "",
+        };
+        buffer.push_str(format!("\n{:<20}| {description}", key.as_str()).as_str());
     });
     buffer
 }
@@ -133,7 +130,7 @@ pub(super) fn format_help<R: Default>(commands: &HashMap<String, Rc<Command<R>>>
 pub(super) fn add_command<R: Default>(
     commands: &mut HashMap<String, Rc<Command<R>>>,
     command_builder: CommandBuilder<R>,
-    _need_print_help: bool,
+    need_print_help: bool,
 ) {
     if let Some(exist) = commands.get(&command_builder.name) {
         panic!(
