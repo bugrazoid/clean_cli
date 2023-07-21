@@ -241,28 +241,28 @@ pub struct CliBuilder<R> {
 
 impl<R: Default + 'static> CliBuilder<R> {
     /// Add command
-    pub fn command(mut self, cmd: CommandBuilder<R>) -> Self {
+    pub fn command(&mut self, cmd: CommandBuilder<R>) -> &mut Self {
         self.commands.push(cmd);
         self
     }
 
     /// Switch output error message to stdout.
-    pub fn print_error(mut self, enable: bool) -> Self {
+    pub fn print_error(&mut self, enable: bool) -> &mut Self {
         self.need_print_error = enable;
         self
     }
 
     /// Switch output help message to stdout.
-    pub fn print_help(mut self, enable: bool) -> Self {
+    pub fn print_help(&mut self, enable: bool) -> &mut Self {
         self.need_print_help = enable;
         self
     }
 
     /// Build and return **Cli** object.
-    pub fn build(self) -> Cli<R> {
+    pub fn build(&mut self) -> Cli<R> {
         let mut commands = <HashMap<String, Rc<Command<R>>>>::default();
 
-        let mut command_builders = self.commands;
+        let command_builders = &mut self.commands;
         while let Some(command_builder) = command_builders.pop() {
             add_command(&mut commands, command_builder, self.need_print_help);
         }

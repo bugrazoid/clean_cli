@@ -81,8 +81,8 @@ impl<R: Default> CommandBuilder<R> {
         self
     }
 
-    fn build(self) -> Command<R> {
-        if self.value.is_none() & self.handler.is_none() & self.subcommands.is_empty() {
+    fn build(self) -> (Command<R>, String, Vec<String>) {
+        if self.value.is_none() && self.handler.is_none() && self.subcommands.is_empty() {
             panic!(
                 "command \"{}: {}\" has no value or handler or subcommand",
                 &self.name,
@@ -90,20 +90,24 @@ impl<R: Default> CommandBuilder<R> {
             )
         }
 
-        Command {
-            subcommands: Self::build_subcommands(self.subcommands),
-            value: self.value,
-            description: self.description,
-            parameters: self.parameters,
-            exec: self.handler,
-        }
+        (
+            Command {
+                subcommands: Self::build_subcommands(self.subcommands),
+                value: self.value,
+                description: self.description,
+                parameters: self.parameters,
+                exec: self.handler,
+            },
+            self.name,
+            self.aliases,
+        )
     }
 
     fn build_subcommands(subcommands: Vec<CommandBuilder<R>>) -> HashMap<String, Rc<Command<R>>> {
-        let mut subcommands = subcommands;
+        let mut subcommands_builders = subcommands;
         let mut commands = <HashMap<String, Rc<Command<R>>>>::default();
 
-        while let Some(command_builder) = subcommands.pop() {
+        while let Some(command_builder) = subcommands_builders.pop() {
             add_command(&mut commands, command_builder, false);
         }
 
@@ -131,7 +135,6 @@ pub(super) fn add_command<R: Default>(
     command_builder: CommandBuilder<R>,
     _need_print_help: bool,
 ) {
-    let mut command_builder = command_builder;
     if let Some(exist) = commands.get(&command_builder.name) {
         panic!(
             "command \"{}: {}\" already exist\nand can not be replaced with command \"{}: {}\"",
@@ -147,12 +150,8 @@ pub(super) fn add_command<R: Default>(
         );
     }
 
-    let name = command_builder.name;
-    command_builder.name = Default::default();
-    let mut aliases = command_builder.aliases;
-    command_builder.aliases = Default::default();
-
-    let command = Rc::new(command_builder.build());
+    let (command, name, mut aliases) = command_builder.build();
+    let command = Rc::new(command);
     commands.insert(name, command.clone());
     while let Some(alias) = aliases.pop() {
         commands.insert(alias, command.clone());
