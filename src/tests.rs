@@ -875,7 +875,10 @@ fn command_with_mixed_params_with_subcommand() {
                     expect_params.insert("float");
                     expect_params.insert("string");
 
-                    if let Some((param, arg)) = &ctx.units.first().unwrap().parameters.get("bool") {
+                    assert_eq!(ctx.units.len(), 3);
+                    let parameters = &ctx.units[1].parameters;
+
+                    if let Some((param, arg)) = parameters.get("bool") {
                         assert_eq!("bool", param.name.as_str());
                         if let ArgValue::Bool(v) = arg {
                             assert!(*v);
@@ -883,7 +886,7 @@ fn command_with_mixed_params_with_subcommand() {
                         }
                     }
 
-                    if let Some((param, arg)) = &ctx.units.first().unwrap().parameters.get("int") {
+                    if let Some((param, arg)) = parameters.get("int") {
                         assert_eq!("int", param.name.as_str());
                         if let ArgValue::Int(v) = arg {
                             assert_eq!(*v, 42_i64);
@@ -891,8 +894,7 @@ fn command_with_mixed_params_with_subcommand() {
                         }
                     }
 
-                    if let Some((param, arg)) = &ctx.units.first().unwrap().parameters.get("float")
-                    {
+                    if let Some((param, arg)) = parameters.get("float") {
                         assert_eq!("float", param.name.as_str());
                         if let ArgValue::Float(v) = arg {
                             assert_eq!(*v, 4.2_f64);
@@ -900,8 +902,7 @@ fn command_with_mixed_params_with_subcommand() {
                         }
                     }
 
-                    if let Some((param, arg)) = &ctx.units.first().unwrap().parameters.get("string")
-                    {
+                    if let Some((param, arg)) = parameters.get("string") {
                         assert_eq!("string", param.name.as_str());
                         if let ArgValue::String(v) = arg {
                             assert_eq!(*v, "bla");
@@ -1000,9 +1001,11 @@ fn command_with_mixed_params_with_subcommand_with_mixed_params() {
                             expect_params_cmd.insert("string");
                             let mut expect_params_sub = expect_params_cmd.clone();
 
-                            if let Some((param, arg)) =
-                                &ctx.units.first().unwrap().parameters.get("bool")
-                            {
+                            assert_eq!(ctx.units.len(), 3);
+
+                            let parent_parameters = &ctx.units[1].parameters;
+
+                            if let Some((param, arg)) = parent_parameters.get("bool") {
                                 assert_eq!("bool", param.name.as_str());
                                 if let ArgValue::Bool(v) = arg {
                                     assert!(*v);
@@ -1010,9 +1013,7 @@ fn command_with_mixed_params_with_subcommand_with_mixed_params() {
                                 }
                             }
 
-                            if let Some((param, arg)) =
-                                &ctx.units.first().unwrap().parameters.get("int")
-                            {
+                            if let Some((param, arg)) = parent_parameters.get("int") {
                                 assert_eq!("int", param.name.as_str());
                                 if let ArgValue::Int(v) = arg {
                                     assert_eq!(*v, 42_i64);
@@ -1020,9 +1021,7 @@ fn command_with_mixed_params_with_subcommand_with_mixed_params() {
                                 }
                             }
 
-                            if let Some((param, arg)) =
-                                &ctx.units.first().unwrap().parameters.get("float")
-                            {
+                            if let Some((param, arg)) = parent_parameters.get("float") {
                                 assert_eq!("float", param.name.as_str());
                                 if let ArgValue::Float(v) = arg {
                                     assert_eq!(*v, 4.2_f64);
@@ -1030,9 +1029,7 @@ fn command_with_mixed_params_with_subcommand_with_mixed_params() {
                                 }
                             }
 
-                            if let Some((param, arg)) =
-                                &ctx.units.first().unwrap().parameters.get("string")
-                            {
+                            if let Some((param, arg)) = parent_parameters.get("string") {
                                 assert_eq!("string", param.name.as_str());
                                 if let ArgValue::String(v) = arg {
                                     assert_eq!(*v, "bla");
@@ -1040,9 +1037,9 @@ fn command_with_mixed_params_with_subcommand_with_mixed_params() {
                                 }
                             }
 
-                            if let Some((param, arg)) =
-                                &ctx.units.last().unwrap().parameters.get("bool")
-                            {
+                            let parameters = &ctx.units[2].parameters;
+
+                            if let Some((param, arg)) = parameters.get("bool") {
                                 assert_eq!("bool", param.name.as_str());
                                 if let ArgValue::Bool(v) = arg {
                                     assert!(*v);
@@ -1050,9 +1047,7 @@ fn command_with_mixed_params_with_subcommand_with_mixed_params() {
                                 }
                             }
 
-                            if let Some((param, arg)) =
-                                &ctx.units.last().unwrap().parameters.get("int")
-                            {
+                            if let Some((param, arg)) = parameters.get("int") {
                                 assert_eq!("int", param.name.as_str());
                                 if let ArgValue::Int(v) = arg {
                                     assert_eq!(*v, 24_i64);
@@ -1060,9 +1055,7 @@ fn command_with_mixed_params_with_subcommand_with_mixed_params() {
                                 }
                             }
 
-                            if let Some((param, arg)) =
-                                &ctx.units.last().unwrap().parameters.get("float")
-                            {
+                            if let Some((param, arg)) = parameters.get("float") {
                                 assert_eq!("float", param.name.as_str());
                                 if let ArgValue::Float(v) = arg {
                                     assert_eq!(*v, 2.4_f64);
@@ -1070,9 +1063,7 @@ fn command_with_mixed_params_with_subcommand_with_mixed_params() {
                                 }
                             }
 
-                            if let Some((param, arg)) =
-                                &ctx.units.last().unwrap().parameters.get("string")
-                            {
+                            if let Some((param, arg)) = parameters.get("string") {
                                 assert_eq!("string", param.name.as_str());
                                 if let ArgValue::String(v) = arg {
                                     assert_eq!(*v, "alb");
@@ -1350,4 +1341,5 @@ fn command_help() {
         .build();
 
     assert!(cli.exec_line("help").is_ok());
+    println!("----------------------------------------------------");
 }

@@ -4,15 +4,13 @@ use super::error::*;
 use super::parameter::*;
 
 use std::{
-    borrow::BorrowMut,
-    cell::RefCell,
     collections::{HashMap, VecDeque},
     fmt::Debug,
     rc::Rc,
     str::FromStr,
 };
 
-///  __Cli__ is a central unit that contains all possible commands, arguments and handlers.
+///  `Cli` is a central unit that contains all possible commands, arguments and handlers.
 /// To create instance using build pattern. Generic parameter using for return values from handlers.
 ///
 /// # Example
@@ -33,12 +31,7 @@ use std::{
 /// ```
 #[derive(Debug)]
 pub struct Cli<R: Default> {
-    data: Rc<RefCell<CliData<R>>>,
-}
-
-#[derive(Debug)]
-pub struct CliData<R: Default> {
-    commands: HashMap<String, Rc<Command<R>>>,
+    root: (String, Rc<Command<R>>),
     need_print_error: bool,
     need_print_help: bool,
 }
@@ -57,9 +50,15 @@ impl<R: Default> Cli<R> {
             ParametersReaded { params: VecDeque<Rc<Parameter>> },
         }
 
-        let mut ctx = Context::default();
+        let mut ctx = Context {
+            units: vec![ContextUnit {
+                command: (self.root.0.as_str(), self.root.1.clone()),
+                parameters: Default::default(),
+                value: None,
+            }],
+        };
         let mut state = ParseState::ReadFirst;
-        let mut pos = 0;
+        let mut pos = 1;
         let args = split_line(line);
 
         for arg in args {
@@ -67,7 +66,7 @@ impl<R: Default> Cli<R> {
                 ParseState::ReadFirst => {
                     if arg.starts_with("--") || arg.starts_with("-") {
                         return self.make_error(Kind::CantExecuteParameter, arg.to_string());
-                    } else if let Some(cmd) = (*self.data).borrow().commands.get(arg) {
+                    } else if let Some(cmd) = self.commands().get(arg) {
                         ctx.units.push(ContextUnit {
                             command: (arg, cmd.clone()),
                             parameters: Default::default(),
@@ -211,11 +210,11 @@ impl<R: Default> Cli<R> {
 
     fn make_error(&self, kind: Kind, details: String) -> Result<R, Error> {
         let error = Error { kind, details };
-        if (*self.data).borrow().need_print_error {
+        if self.need_print_error {
             self.print_error(&error);
         }
-        if (*self.data).borrow().need_print_help {
-            let commands = &self.data.borrow().commands;
+        if self.need_print_help {
+            let commands = self.commands();
             let buffer = format_help(commands);
             Cli::<R>::print_help(buffer.as_str());
         }
@@ -228,6 +227,10 @@ impl<R: Default> Cli<R> {
 
     fn print_help(buffer: &str) {
         println!("{}", buffer);
+    }
+
+    fn commands(&self) -> &HashMap<String, Rc<Command<R>>> {
+        &self.root.1.subcommands
     }
 }
 
@@ -267,31 +270,34 @@ impl<R: Default + 'static> CliBuilder<R> {
             add_command(&mut commands, command_builder, self.need_print_help);
         }
 
-        let cli_data = Rc::new(RefCell::new(CliData {
-            commands,
-            need_print_error: self.need_print_error,
-            need_print_help: self.need_print_help,
-        }));
-
         if self.need_print_help {
-            let cd = cli_data.clone();
             let cb = CommandBuilder::with_name("help")
-                .handler(move |_| {
-                    let commands = &cd.borrow().commands;
-                    let help_text = format_help(commands);
-                    println!("{}", help_text);
+                .handler(|ctx| {
+                    let last = ctx.command_units().len();
+                    let commands = &ctx.command_units()[last.saturating_sub(1)]
+                        .command
+                        .1
+                        .subcommands;
+                    let buffer = format_help(commands);
+                    Cli::<R>::print_help(buffer.as_str());
                     R::default()
                 })
                 .description("This help");
 
-            add_command(
-                (*cli_data).borrow_mut().commands.borrow_mut(),
-                cb,
-                self.need_print_help,
-            );
+            add_command(&mut commands, cb, self.need_print_help);
         }
 
-        Cli { data: cli_data }
+        Cli {
+            root: (
+                "root".to_owned(),
+                Rc::new(Command {
+                    subcommands: commands,
+                    ..Default::default()
+                }),
+            ),
+            need_print_help: self.need_print_help,
+            need_print_error: self.need_print_error,
+        }
     }
 }
 
