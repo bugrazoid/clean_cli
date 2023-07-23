@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod tests;
 
-mod cli;
 mod traits;
+pub use traits::DefaultConfig;
+
+mod cli;
 pub use cli::*;
 
 mod command;

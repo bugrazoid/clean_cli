@@ -1,4 +1,4 @@
-use crate::traits;
+use crate::traits::*;
 
 use super::{context::Context, parameter::*};
 
@@ -16,14 +16,14 @@ type CallBack<R> = RefCell<Box<dyn FnMut(Context<R>) -> R>>;
 
 /// `CommandBuilder` is a helper using for build [`Command`].
 #[derive(Default)]
-pub struct CommandBuilder<R> {
+pub struct CommandBuilder<T: Config> {
     name: String,
     aliases: Vec<String>,
-    subcommands: Vec<CommandBuilder<R>>,
+    subcommands: Vec<CommandBuilder<T>>,
     value: Option<ArgType>,
     description: Option<String>,
     parameters: HashMap<String, Rc<Parameter>>,
-    handler: Option<CallBack<R>>,
+    handler: Option<CallBack<T::Result>>,
 }
 
 /// `Command` stores all associated options, subcommands, values, and handler.
@@ -36,9 +36,9 @@ pub struct Command<R> {
     pub(super) exec: Option<CallBack<R>>,
 }
 
-impl<R: Default + Debug + 'static> CommandBuilder<R> {
+impl<T: Config> CommandBuilder<T> {
     /// Create command with name.
-    pub fn with_name(name: &str) -> CommandBuilder<R> {
+    pub fn with_name(name: &str) -> CommandBuilder<T> {
         CommandBuilder {
             name: name.to_string(),
             ..Default::default()
@@ -54,7 +54,7 @@ impl<R: Default + Debug + 'static> CommandBuilder<R> {
     /// Add subcommand
     /// # Panic
     /// Panics if command has no executor or command with same name already exist
-    pub fn subcommand(mut self, command: CommandBuilder<R>) -> Self {
+    pub fn subcommand(mut self, command: CommandBuilder<T>) -> Self {
         self.subcommands.push(command);
         self
     }
@@ -68,7 +68,7 @@ impl<R: Default + Debug + 'static> CommandBuilder<R> {
     /// Set command handler
     pub fn handler<F>(mut self, f: F) -> Self
     where
-        F: FnMut(Context<R>) -> R + 'static,
+        F: FnMut(Context<T::Result>) -> T::Result + 'static,
     {
         self.handler = Some(RefCell::new(Box::new(f)));
         self
@@ -85,7 +85,7 @@ impl<R: Default + Debug + 'static> CommandBuilder<R> {
         self
     }
 
-    fn build(self, need_print_help: bool) -> (Command<R>, String, Vec<String>) {
+    fn build(self, need_print_help: bool) -> (Command<T::Result>, String, Vec<String>) {
         if self.value.is_none() && self.handler.is_none() && self.subcommands.is_empty() {
             panic!(
                 "command \"{}: {}\" has no value or handler or subcommand",
@@ -95,7 +95,7 @@ impl<R: Default + Debug + 'static> CommandBuilder<R> {
         }
 
         (
-            Command {
+            Command::<T::Result> {
                 subcommands: Self::build_subcommands(self.subcommands, need_print_help),
                 value: self.value,
                 description: self.description,
@@ -108,11 +108,11 @@ impl<R: Default + Debug + 'static> CommandBuilder<R> {
     }
 
     fn build_subcommands(
-        subcommands: Vec<CommandBuilder<R>>,
+        subcommands: Vec<CommandBuilder<T>>,
         need_print_help: bool,
-    ) -> HashMap<String, Rc<Command<R>>> {
+    ) -> HashMap<String, Rc<Command<T::Result>>> {
         let mut subcommands_builders = subcommands;
-        let mut commands = <HashMap<String, Rc<Command<R>>>>::default();
+        let mut commands = <HashMap<String, Rc<Command<T::Result>>>>::default();
         let sub_count = subcommands_builders.len();
 
         while let Some(command_builder) = subcommands_builders.pop() {
@@ -120,10 +120,8 @@ impl<R: Default + Debug + 'static> CommandBuilder<R> {
         }
 
         if need_print_help && sub_count > 0 {
-            let cb = CommandBuilder::with_name("help")
-                .handler(
-                    help_handler::<R, traits::DefaultHelpFormatter, traits::DefaultHelpPrinter>,
-                )
+            let cb = <CommandBuilder<T>>::with_name("help")
+                .handler(help_handler::<T>)
                 .description("This help");
 
             add_command(&mut commands, cb, need_print_help);
@@ -145,25 +143,20 @@ pub(super) fn format_help<R: Default>(commands: &HashMap<String, Rc<Command<R>>>
     buffer
 }
 
-pub(super) fn help_handler<R, HF, HP>(ctx: Context<R>) -> R
-where
-    R: Default + Debug + 'static,
-    HF: traits::HelpFormatter<R>,
-    HP: traits::HelpPrinter<R, HF>,
-{
+pub(super) fn help_handler<T: Config>(ctx: Context<T::Result>) -> T::Result {
     let last = ctx.command_units().len().saturating_sub(1);
     let commands = &ctx.command_units()[last.saturating_sub(1)]
         .command
         .1
         .subcommands;
-    let buffer = HF::format(commands);
-    HP::print(&buffer);
-    R::default()
+    let buffer = T::HelpFormatter::format(commands);
+    T::HelpPrinter::print(&buffer);
+    T::Result::default()
 }
 
-pub(super) fn add_command<R: Default + Debug + 'static>(
-    commands: &mut HashMap<String, Rc<Command<R>>>,
-    command_builder: CommandBuilder<R>,
+pub(super) fn add_command<T: Config>(
+    commands: &mut HashMap<String, Rc<Command<T::Result>>>,
+    command_builder: CommandBuilder<T>,
     need_print_help: bool,
 ) {
     if let Some(exist) = commands.get(&command_builder.name) {
@@ -224,7 +217,7 @@ impl<R> std::fmt::Debug for self::Command<R> {
     }
 }
 
-impl<R> std::fmt::Debug for self::CommandBuilder<R> {
+impl<T: Config> std::fmt::Debug for self::CommandBuilder<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(stringify!(CommandBuilder))
             .field("value", &self.value)

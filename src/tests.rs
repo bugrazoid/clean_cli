@@ -1,5 +1,10 @@
-use crate::{ArgType, ArgValue, Cli, CommandBuilder, Parameter};
-use std::{cell::Cell, collections::HashSet, rc::Rc};
+use crate::{
+    traits::{Config, DefaultConfig, DefaultHelpFormatter, DefaultHelpPrinter},
+    ArgType, ArgValue, Cli, CommandBuilder, Parameter,
+};
+use std::{cell::Cell, collections::HashSet, fmt::Debug, marker::PhantomData, rc::Rc};
+
+type Test<R> = DefaultConfig<R>;
 
 fn some_fn(ctx: crate::context::Context<()>) {
     if let Some(unit) = ctx.command_units().last() {
@@ -11,7 +16,7 @@ fn some_fn(ctx: crate::context::Context<()>) {
 
 #[test]
 fn use_regular_function() {
-    let _cli = Cli::<()>::builder()
+    let _cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(Parameter::with_name("param"))
@@ -24,7 +29,7 @@ fn use_regular_function() {
 fn command() {
     let is_triggered = Rc::new(Cell::new(false));
     let is_triggered_closure = is_triggered.clone();
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(CommandBuilder::with_name("cmd").handler(move |_| {
             is_triggered_closure.set(true);
         }))
@@ -40,7 +45,7 @@ fn command() {
 
 #[test]
 fn command_with_bool_param() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -88,7 +93,7 @@ fn command_with_two_bool_param() {
     let flags = Rc::new(Cell::new((false, false)));
     let flags_move = flags.clone();
 
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -191,7 +196,7 @@ fn command_with_two_bool_param() {
 
 #[test]
 fn command_with_int_param_no_value() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -224,7 +229,7 @@ fn command_with_int_param_no_value() {
 
 #[test]
 fn command_with_int_param() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -264,7 +269,7 @@ fn command_with_int_param() {
 
 #[test]
 fn command_with_two_int_param() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -310,7 +315,7 @@ fn command_with_two_int_param() {
 
 #[test]
 fn command_with_float_param_no_value() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -343,7 +348,7 @@ fn command_with_float_param_no_value() {
 
 #[test]
 fn command_with_float_param() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -383,7 +388,7 @@ fn command_with_float_param() {
 
 #[test]
 fn command_with_two_float_param() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -430,7 +435,7 @@ fn command_with_two_float_param() {
 
 #[test]
 fn command_with_string_param_no_value() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -463,7 +468,7 @@ fn command_with_string_param_no_value() {
 
 #[test]
 fn command_with_sting_param() {
-    let cli = Cli::<String>::builder()
+    let cli = <Cli<Test<String>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -521,7 +526,7 @@ fn command_with_sting_param() {
 
 #[test]
 fn command_with_two_string_param() {
-    let cli = Cli::<(Option<String>, Option<String>)>::builder()
+    let cli = <Cli<Test<(Option<String>, Option<String>)>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -608,7 +613,7 @@ fn command_with_two_string_param() {
 
 #[test]
 fn command_with_mixed_params() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -713,7 +718,7 @@ fn command_with_subcommand() {
     let is_triggered = Rc::new(Cell::new(false));
     let is_triggered_closure = is_triggered.clone();
 
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(CommandBuilder::with_name("cmd").subcommand(
             CommandBuilder::with_name("sub").handler(move |_| {
                 is_triggered_closure.set(true);
@@ -736,7 +741,7 @@ fn command_with_subcommand() {
 
 #[test]
 fn command_with_subcommand_with_mixed_params() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd").subcommand(
                 CommandBuilder::with_name("sub")
@@ -841,7 +846,7 @@ fn command_with_subcommand_with_mixed_params() {
 
 #[test]
 fn command_with_mixed_params_with_subcommand() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -940,7 +945,7 @@ fn command_with_mixed_params_with_subcommand() {
 
 #[test]
 fn command_with_mixed_params_with_subcommand_with_mixed_params() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .parameter(
@@ -1108,7 +1113,7 @@ fn command_with_mixed_params_with_subcommand_with_mixed_params() {
 
 #[test]
 fn command_with_bool_value() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .use_value(ArgType::Bool)
@@ -1133,7 +1138,7 @@ fn command_with_bool_value() {
 
 #[test]
 fn command_with_int_value() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .use_value(ArgType::Int)
@@ -1158,7 +1163,7 @@ fn command_with_int_value() {
 
 #[test]
 fn command_with_float_value() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .use_value(ArgType::Float)
@@ -1183,7 +1188,7 @@ fn command_with_float_value() {
 
 #[test]
 fn command_with_string_value() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .use_value(ArgType::String)
@@ -1208,7 +1213,7 @@ fn command_with_string_value() {
 
 #[test]
 fn command_with_mixed_params_and_value() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .command(
             CommandBuilder::with_name("cmd")
                 .use_value(ArgType::Bool)
@@ -1319,7 +1324,7 @@ fn command_with_mixed_params_and_value() {
 
 #[test]
 fn command_help() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .print_help(true)
         .command(
             CommandBuilder::with_name("cmd")
@@ -1346,7 +1351,7 @@ fn command_help() {
 
 #[test]
 fn sub_command_help() {
-    let cli = Cli::<()>::builder()
+    let cli = <Cli<Test<()>>>::builder()
         .print_help(true)
         .command(
             CommandBuilder::with_name("cmd")
@@ -1374,7 +1379,7 @@ fn sub_command_help() {
 
 #[test]
 fn sub_command() {
-    let cli = Cli::<bool>::builder()
+    let cli = <Cli<Test<bool>>>::builder()
         .print_help(true)
         .command(
             CommandBuilder::with_name("cmd")

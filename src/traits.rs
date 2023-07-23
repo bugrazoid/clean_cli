@@ -1,6 +1,24 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData, rc::Rc};
 
 use crate::Command;
+
+pub trait Config: Default + 'static {
+    type Result: Default + Debug + 'static;
+    type HelpFormatter: HelpFormatter<Self::Result>;
+    type HelpPrinter: HelpPrinter<Self::Result, Self::HelpFormatter>;
+}
+
+pub struct DefaultConfig<R>(PhantomData<R>);
+impl<R: Default + Debug + 'static> Config for DefaultConfig<R> {
+    type Result = R;
+    type HelpFormatter = DefaultHelpFormatter;
+    type HelpPrinter = DefaultHelpPrinter;
+}
+impl<R> Default for DefaultConfig<R> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
 
 pub trait HelpPrinter<R, HF: HelpFormatter<R>> {
     fn print(input: &HF::Output);

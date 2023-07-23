@@ -1,4 +1,5 @@
 use crate::traits;
+use crate::traits::Config;
 
 use super::command::*;
 use super::context::*;
@@ -20,7 +21,7 @@ use std::{
 /// ```rust
 /// use clean_cli::*;
 ///
-/// let cli = Cli::<bool>::builder()
+/// let cli = <Cli<DefaultConfig<bool>>>::builder()
 ///      .command(CommandBuilder::with_name("cmd")
 ///          .handler(|ctx| {
 ///              // some logic
@@ -32,27 +33,27 @@ use std::{
 /// assert!(cli.exec_line("cmd").unwrap());
 /// ```
 #[derive(Debug)]
-pub struct Cli<R: Default> {
-    root: (String, Rc<Command<R>>),
+pub struct Cli<T: Config> {
+    root: (String, Rc<Command<T::Result>>),
     need_print_error: bool,
     need_print_help: bool,
 }
 
-impl<R: Default> Cli<R> {
+impl<T: Config> Cli<T> {
     /// Create builder
-    pub fn builder() -> CliBuilder<R> {
+    pub fn builder() -> CliBuilder<T> {
         CliBuilder::default()
     }
 
     /// Execute _line_
-    pub fn exec_line(&self, line: &str) -> Result<R, Error> {
+    pub fn exec_line(&self, line: &str) -> Result<T::Result, Error> {
         enum ParseState {
             ReadFirst,
             ReadNext,
             ParametersReaded { params: VecDeque<Rc<Parameter>> },
         }
 
-        let mut ctx = Context {
+        let mut ctx = Context::<T::Result> {
             units: vec![ContextUnit {
                 command: (self.root.0.as_str(), self.root.1.clone()),
                 parameters: Default::default(),
@@ -210,7 +211,7 @@ impl<R: Default> Cli<R> {
         Ok(Default::default())
     }
 
-    fn make_error(&self, kind: Kind, details: String) -> Result<R, Error> {
+    fn make_error(&self, kind: Kind, details: String) -> Result<T::Result, Error> {
         let error = Error { kind, details };
         if self.need_print_error {
             self.print_error(&error);
@@ -218,7 +219,7 @@ impl<R: Default> Cli<R> {
         if self.need_print_help {
             let commands = self.commands();
             let buffer = format_help(commands);
-            Cli::<R>::print_help(buffer.as_str());
+            Cli::<T>::print_help(buffer.as_str());
         }
         Err(error)
     }
@@ -231,22 +232,22 @@ impl<R: Default> Cli<R> {
         println!("{}", buffer);
     }
 
-    fn commands(&self) -> &HashMap<String, Rc<Command<R>>> {
+    fn commands(&self) -> &HashMap<String, Rc<Command<T::Result>>> {
         &self.root.1.subcommands
     }
 }
 
 /// `CliBuilder` is a helper using for build [`Cli`].
 #[derive(Default, Debug)]
-pub struct CliBuilder<R> {
-    commands: Vec<CommandBuilder<R>>,
+pub struct CliBuilder<T: Config> {
+    commands: Vec<CommandBuilder<T>>,
     need_print_error: bool,
     need_print_help: bool,
 }
 
-impl<R: Default + Debug + 'static> CliBuilder<R> {
+impl<T: Config> CliBuilder<T> {
     /// Add command
-    pub fn command(&mut self, cmd: CommandBuilder<R>) -> &mut Self {
+    pub fn command(&mut self, cmd: CommandBuilder<T>) -> &mut Self {
         self.commands.push(cmd);
         self
     }
@@ -264,8 +265,8 @@ impl<R: Default + Debug + 'static> CliBuilder<R> {
     }
 
     /// Build and return `Cli` object.
-    pub fn build(&mut self) -> Cli<R> {
-        let mut commands = <HashMap<String, Rc<Command<R>>>>::default();
+    pub fn build(&mut self) -> Cli<T> {
+        let mut commands = <HashMap<String, Rc<Command<T::Result>>>>::default();
 
         let command_builders = &mut self.commands;
         while let Some(command_builder) = command_builders.pop() {
@@ -273,14 +274,8 @@ impl<R: Default + Debug + 'static> CliBuilder<R> {
         }
 
         if self.need_print_help {
-            let cb = CommandBuilder::with_name("help")
-                .handler(
-                    crate::command::help_handler::<
-                        R,
-                        traits::DefaultHelpFormatter,
-                        traits::DefaultHelpPrinter,
-                    >,
-                )
+            let cb = <CommandBuilder<T>>::with_name("help")
+                .handler(crate::command::help_handler::<T>)
                 .description("This help");
 
             add_command(&mut commands, cb, self.need_print_help);
@@ -392,55 +387,6 @@ fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, Stri
 #[cfg(test)]
 mod test {
     use crate::{ArgType, ArgValue, Cli, CommandBuilder, Parameter};
-
-    #[test]
-    fn print_help() {
-        let cli = Cli::<()>::builder()
-            .print_help(true)
-            .command(
-                CommandBuilder::with_name("cmd")
-                    .parameter(
-                        Parameter::with_name("bool")
-                            .value_type(ArgType::Bool)
-                            .alias("b")
-                            .alias("bb")
-                            .description("Some about bool"),
-                    )
-                    .parameter(
-                        Parameter::with_name("int")
-                            .value_type(ArgType::Int)
-                            .alias("i")
-                            .alias("ii")
-                            .description("Some about int"),
-                    )
-                    .parameter(
-                        Parameter::with_name("float")
-                            .value_type(ArgType::Float)
-                            .alias("f")
-                            .alias("ff")
-                            .description("Some about float"),
-                    )
-                    .parameter(
-                        Parameter::with_name("string")
-                            .value_type(ArgType::String)
-                            .alias("s")
-                            .alias("ss")
-                            .description("Some about string"),
-                    )
-                    .description("Main command for all other commands")
-                    .use_value(ArgType::Bool),
-            )
-            .command(
-                CommandBuilder::with_name("other_cmd")
-                    .description("Some other command")
-                    .use_value(ArgType::Bool),
-            )
-            .build();
-
-        // cli.exec_line("help").unwrap();
-        assert!(cli.exec_line("bad").is_err());
-        assert!(true)
-    }
 
     #[test]
     fn split_line() {
