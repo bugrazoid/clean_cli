@@ -1,3 +1,5 @@
+use crate::traits;
+
 use super::command::*;
 use super::context::*;
 use super::error::*;
@@ -234,7 +236,7 @@ impl<R: Default> Cli<R> {
     }
 }
 
-/// **CliBuilder** is a helper using for build `Cli`.
+/// `CliBuilder` is a helper using for build [`Cli`].
 #[derive(Default, Debug)]
 pub struct CliBuilder<R> {
     commands: Vec<CommandBuilder<R>>,
@@ -261,7 +263,7 @@ impl<R: Default + Debug + 'static> CliBuilder<R> {
         self
     }
 
-    /// Build and return **Cli** object.
+    /// Build and return `Cli` object.
     pub fn build(&mut self) -> Cli<R> {
         let mut commands = <HashMap<String, Rc<Command<R>>>>::default();
 
@@ -272,7 +274,13 @@ impl<R: Default + Debug + 'static> CliBuilder<R> {
 
         if self.need_print_help {
             let cb = CommandBuilder::with_name("help")
-                .handler(crate::command::help_handler)
+                .handler(
+                    crate::command::help_handler::<
+                        R,
+                        traits::DefaultHelpFormatter,
+                        traits::DefaultHelpPrinter,
+                    >,
+                )
                 .description("This help");
 
             add_command(&mut commands, cb, self.need_print_help);

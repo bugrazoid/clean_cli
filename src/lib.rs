@@ -2,6 +2,7 @@
 mod tests;
 
 mod cli;
+mod traits;
 pub use cli::*;
 
 mod command;

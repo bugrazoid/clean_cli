@@ -1,4 +1,6 @@
-use super::{context::Context, parameter::*, Cli};
+use crate::traits;
+
+use super::{context::Context, parameter::*};
 
 use std::{
     borrow::BorrowMut,
@@ -12,7 +14,7 @@ const NO_DESCRIPTION: &str = "";
 
 type CallBack<R> = RefCell<Box<dyn FnMut(Context<R>) -> R>>;
 
-/// **CommandBuilder** is a helper using for build command object.
+/// `CommandBuilder` is a helper using for build [`Command`].
 #[derive(Default)]
 pub struct CommandBuilder<R> {
     name: String,
@@ -24,8 +26,9 @@ pub struct CommandBuilder<R> {
     handler: Option<CallBack<R>>,
 }
 
+/// `Command` stores all associated options, subcommands, values, and handler.
 #[derive(Default)]
-pub(super) struct Command<R> {
+pub struct Command<R> {
     pub(super) subcommands: HashMap<String, Rc<Command<R>>>,
     pub(super) value: Option<ArgType>,
     pub(super) description: Option<String>,
@@ -118,7 +121,9 @@ impl<R: Default + Debug + 'static> CommandBuilder<R> {
 
         if need_print_help && sub_count > 0 {
             let cb = CommandBuilder::with_name("help")
-                .handler(help_handler)
+                .handler(
+                    help_handler::<R, traits::DefaultHelpFormatter, traits::DefaultHelpPrinter>,
+                )
                 .description("This help");
 
             add_command(&mut commands, cb, need_print_help);
@@ -140,14 +145,19 @@ pub(super) fn format_help<R: Default>(commands: &HashMap<String, Rc<Command<R>>>
     buffer
 }
 
-pub(super) fn help_handler<R: Default + Debug + 'static>(ctx: Context<R>) -> R {
+pub(super) fn help_handler<R, HF, HP>(ctx: Context<R>) -> R
+where
+    R: Default + Debug + 'static,
+    HF: traits::HelpFormatter<R>,
+    HP: traits::HelpPrinter<R, HF>,
+{
     let last = ctx.command_units().len().saturating_sub(1);
     let commands = &ctx.command_units()[last.saturating_sub(1)]
         .command
         .1
         .subcommands;
-    let buffer = format_help(commands);
-    Cli::<R>::print_help(buffer.as_str());
+    let buffer = HF::format(commands);
+    HP::print(&buffer);
     R::default()
 }
 
