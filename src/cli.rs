@@ -242,7 +242,7 @@ pub struct CliBuilder<R> {
     need_print_help: bool,
 }
 
-impl<R: Default + 'static> CliBuilder<R> {
+impl<R: Default + Debug + 'static> CliBuilder<R> {
     /// Add command
     pub fn command(&mut self, cmd: CommandBuilder<R>) -> &mut Self {
         self.commands.push(cmd);
@@ -273,7 +273,7 @@ impl<R: Default + 'static> CliBuilder<R> {
         if self.need_print_help {
             let cb = CommandBuilder::with_name("help")
                 .handler(|ctx| {
-                    let last = ctx.command_units().len();
+                    let last = ctx.command_units().len().saturating_sub(1);
                     let commands = &ctx.command_units()[last.saturating_sub(1)]
                         .command
                         .1

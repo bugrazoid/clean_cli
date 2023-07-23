@@ -116,7 +116,7 @@ impl<R: Default> CommandBuilder<R> {
 }
 
 pub(super) fn format_help<R: Default>(commands: &HashMap<String, Rc<Command<R>>>) -> String {
-    let mut buffer = String::new();
+    let mut buffer = "Help:".to_string();
     commands.iter().for_each(|(key, cmd)| {
         let description = match cmd.description.as_ref() {
             Some(s) => s.as_str(),
