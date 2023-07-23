@@ -1,11 +1,12 @@
-use super::context::Context;
-use super::parameter::*;
+use super::{context::Context, parameter::*, Cli};
 
-use std::borrow::BorrowMut;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::fmt::Formatter;
-use std::rc::Rc;
+use std::{
+    borrow::BorrowMut,
+    cell::RefCell,
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    rc::Rc,
+};
 
 const NO_DESCRIPTION: &str = "";
 
@@ -32,7 +33,7 @@ pub(super) struct Command<R> {
     pub(super) exec: Option<CallBack<R>>,
 }
 
-impl<R: Default> CommandBuilder<R> {
+impl<R: Default + Debug + 'static> CommandBuilder<R> {
     /// Create command with name.
     pub fn with_name(name: &str) -> CommandBuilder<R> {
         CommandBuilder {
@@ -81,7 +82,7 @@ impl<R: Default> CommandBuilder<R> {
         self
     }
 
-    fn build(self) -> (Command<R>, String, Vec<String>) {
+    fn build(self, need_print_help: bool) -> (Command<R>, String, Vec<String>) {
         if self.value.is_none() && self.handler.is_none() && self.subcommands.is_empty() {
             panic!(
                 "command \"{}: {}\" has no value or handler or subcommand",
@@ -92,7 +93,7 @@ impl<R: Default> CommandBuilder<R> {
 
         (
             Command {
-                subcommands: Self::build_subcommands(self.subcommands),
+                subcommands: Self::build_subcommands(self.subcommands, need_print_help),
                 value: self.value,
                 description: self.description,
                 parameters: self.parameters,
@@ -103,12 +104,24 @@ impl<R: Default> CommandBuilder<R> {
         )
     }
 
-    fn build_subcommands(subcommands: Vec<CommandBuilder<R>>) -> HashMap<String, Rc<Command<R>>> {
+    fn build_subcommands(
+        subcommands: Vec<CommandBuilder<R>>,
+        need_print_help: bool,
+    ) -> HashMap<String, Rc<Command<R>>> {
         let mut subcommands_builders = subcommands;
         let mut commands = <HashMap<String, Rc<Command<R>>>>::default();
+        let sub_count = subcommands_builders.len();
 
         while let Some(command_builder) = subcommands_builders.pop() {
-            add_command(&mut commands, command_builder, false);
+            add_command(&mut commands, command_builder, need_print_help);
+        }
+
+        if need_print_help && sub_count > 0 {
+            let cb = CommandBuilder::with_name("help")
+                .handler(help_handler)
+                .description("This help");
+
+            add_command(&mut commands, cb, need_print_help);
         }
 
         commands
@@ -127,7 +140,18 @@ pub(super) fn format_help<R: Default>(commands: &HashMap<String, Rc<Command<R>>>
     buffer
 }
 
-pub(super) fn add_command<R: Default>(
+pub(super) fn help_handler<R: Default + Debug + 'static>(ctx: Context<R>) -> R {
+    let last = ctx.command_units().len().saturating_sub(1);
+    let commands = &ctx.command_units()[last.saturating_sub(1)]
+        .command
+        .1
+        .subcommands;
+    let buffer = format_help(commands);
+    Cli::<R>::print_help(buffer.as_str());
+    R::default()
+}
+
+pub(super) fn add_command<R: Default + Debug + 'static>(
     commands: &mut HashMap<String, Rc<Command<R>>>,
     command_builder: CommandBuilder<R>,
     need_print_help: bool,
@@ -147,7 +171,7 @@ pub(super) fn add_command<R: Default>(
         );
     }
 
-    let (command, name, mut aliases) = command_builder.build();
+    let (command, name, mut aliases) = command_builder.build(need_print_help);
     let command = Rc::new(command);
     commands.insert(name, command.clone());
     while let Some(alias) = aliases.pop() {

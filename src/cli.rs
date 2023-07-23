@@ -124,6 +124,14 @@ impl<R: Default> Cli<R> {
                         if !params.is_empty() {
                             new_state = Some(ParseState::ParametersReaded { params });
                         }
+                    } else if let Some(sub) = cmd.subcommands.get(arg) {
+                        ctx.units.push(ContextUnit {
+                            command: (arg, sub.clone()),
+                            parameters: Default::default(),
+                            value: None,
+                        });
+                        pos += 1;
+                        new_state = Some(ParseState::ReadNext);
                     } else if let Some(v) = cmd.value.as_ref() {
                         match parse_arg(v.clone(), arg) {
                             Ok(value) => {
@@ -133,14 +141,6 @@ impl<R: Default> Cli<R> {
                                 return self.make_error(Kind::ValueParseFailed, details)
                             }
                         };
-                    } else if let Some(sub) = cmd.subcommands.get(arg) {
-                        ctx.units.push(ContextUnit {
-                            command: (arg, sub.clone()),
-                            parameters: Default::default(),
-                            value: None,
-                        });
-                        pos += 1;
-                        new_state = Some(ParseState::ReadNext);
                     } else {
                         return self.make_error(Kind::NotCommand, arg.to_string());
                     }
@@ -225,7 +225,7 @@ impl<R: Default> Cli<R> {
         println!("{}", error)
     }
 
-    fn print_help(buffer: &str) {
+    pub(crate) fn print_help(buffer: &str) {
         println!("{}", buffer);
     }
 
@@ -272,16 +272,7 @@ impl<R: Default + Debug + 'static> CliBuilder<R> {
 
         if self.need_print_help {
             let cb = CommandBuilder::with_name("help")
-                .handler(|ctx| {
-                    let last = ctx.command_units().len().saturating_sub(1);
-                    let commands = &ctx.command_units()[last.saturating_sub(1)]
-                        .command
-                        .1
-                        .subcommands;
-                    let buffer = format_help(commands);
-                    Cli::<R>::print_help(buffer.as_str());
-                    R::default()
-                })
+                .handler(crate::command::help_handler)
                 .description("This help");
 
             add_command(&mut commands, cb, self.need_print_help);

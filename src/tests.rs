@@ -1340,6 +1340,55 @@ fn command_help() {
         .command(CommandBuilder::with_name("another_cmd").use_value(ArgType::Bool))
         .build();
 
+    //TODO: Compare with etalone
     assert!(cli.exec_line("help").is_ok());
-    println!("----------------------------------------------------");
+}
+
+#[test]
+fn sub_command_help() {
+    let cli = Cli::<()>::builder()
+        .print_help(true)
+        .command(
+            CommandBuilder::with_name("cmd")
+                .use_value(ArgType::Bool)
+                .parameter(
+                    Parameter::with_name("bool")
+                        .value_type(ArgType::Bool)
+                        .alias("b")
+                        .alias("bb"),
+                )
+                .parameter(
+                    Parameter::with_name("int")
+                        .value_type(ArgType::Int)
+                        .alias("i")
+                        .alias("ii"),
+                )
+                .subcommand(CommandBuilder::with_name("sub").use_value(ArgType::Int)),
+        )
+        .command(CommandBuilder::with_name("another_cmd").use_value(ArgType::Bool))
+        .build();
+
+    //TODO: Compare with etalone
+    assert!(cli.exec_line("cmd help").is_ok());
+}
+
+#[test]
+fn sub_command() {
+    let cli = Cli::<bool>::builder()
+        .print_help(true)
+        .command(
+            CommandBuilder::with_name("cmd")
+                .use_value(ArgType::Bool)
+                .subcommand(
+                    CommandBuilder::with_name("sub")
+                        .use_value(ArgType::Int)
+                        .handler(|_| true),
+                ),
+        )
+        .command(CommandBuilder::with_name("another_cmd").use_value(ArgType::Bool))
+        .build();
+
+    let res = cli.exec_line("cmd sub 10");
+    assert!(res.is_ok());
+    assert!(res.unwrap());
 }
