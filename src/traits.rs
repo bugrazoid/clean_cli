@@ -4,8 +4,8 @@ use crate::Command;
 
 pub trait Config: Default + 'static {
     type Result: Default + Debug + 'static;
-    type HelpFormatter: HelpFormatter<Self::Result>;
-    type HelpPrinter: HelpPrinter<Self::Result, Self::HelpFormatter>;
+    type HelpFormatter: HelpFormatter<Self>;
+    type HelpPrinter: HelpPrinter<Self, Self::HelpFormatter>;
 }
 
 pub struct DefaultConfig<R>(PhantomData<R>);
@@ -20,12 +20,12 @@ impl<R> Default for DefaultConfig<R> {
     }
 }
 
-pub trait HelpPrinter<R, HF: HelpFormatter<R>> {
+pub trait HelpPrinter<T: Config, HF: HelpFormatter<T>> {
     fn print(input: &HF::Output);
 }
 
 pub struct DefaultHelpPrinter;
-impl<R, HF: HelpFormatter<R>> HelpPrinter<R, HF> for DefaultHelpPrinter
+impl<T: Config, HF: HelpFormatter<T>> HelpPrinter<T, HF> for DefaultHelpPrinter
 where
     HF::Output: std::fmt::Display,
 {
@@ -34,16 +34,16 @@ where
     }
 }
 
-pub trait HelpFormatter<R> {
+pub trait HelpFormatter<T: Config> {
     type Output;
-    fn format(commands: &HashMap<String, Rc<Command<R>>>) -> Self::Output;
+    fn format(commands: &HashMap<String, Rc<Command<T>>>) -> Self::Output;
 }
 
 pub struct DefaultHelpFormatter;
-impl<R> HelpFormatter<R> for DefaultHelpFormatter {
+impl<T: Config> HelpFormatter<T> for DefaultHelpFormatter {
     type Output = String;
 
-    fn format(commands: &HashMap<String, Rc<Command<R>>>) -> Self::Output {
+    fn format(commands: &HashMap<String, Rc<Command<T>>>) -> Self::Output {
         let mut buffer = "Help:".to_string();
         commands.iter().for_each(|(key, cmd)| {
             let description = match cmd.description.as_ref() {

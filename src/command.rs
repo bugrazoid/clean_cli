@@ -12,7 +12,7 @@ use std::{
 
 const NO_DESCRIPTION: &str = "";
 
-type CallBack<R> = RefCell<Box<dyn FnMut(Context<R>) -> R>>;
+type CallBack<T: Config> = RefCell<Box<dyn FnMut(Context<T>) -> T::Result>>;
 
 /// `CommandBuilder` is a helper using for build [`Command`].
 #[derive(Default)]
@@ -23,17 +23,17 @@ pub struct CommandBuilder<T: Config> {
     value: Option<ArgType>,
     description: Option<String>,
     parameters: HashMap<String, Rc<Parameter>>,
-    handler: Option<CallBack<T::Result>>,
+    handler: Option<CallBack<T>>,
 }
 
 /// `Command` stores all associated options, subcommands, values, and handler.
 #[derive(Default)]
-pub struct Command<R> {
-    pub(super) subcommands: HashMap<String, Rc<Command<R>>>,
+pub struct Command<T: Config> {
+    pub(super) subcommands: HashMap<String, Rc<Command<T>>>,
     pub(super) value: Option<ArgType>,
     pub(super) description: Option<String>,
     pub(super) parameters: HashMap<String, Rc<Parameter>>,
-    pub(super) exec: Option<CallBack<R>>,
+    pub(super) exec: Option<CallBack<T>>,
 }
 
 impl<T: Config> CommandBuilder<T> {
@@ -68,7 +68,7 @@ impl<T: Config> CommandBuilder<T> {
     /// Set command handler
     pub fn handler<F>(mut self, f: F) -> Self
     where
-        F: FnMut(Context<T::Result>) -> T::Result + 'static,
+        F: FnMut(Context<T>) -> T::Result + 'static,
     {
         self.handler = Some(RefCell::new(Box::new(f)));
         self
@@ -85,7 +85,7 @@ impl<T: Config> CommandBuilder<T> {
         self
     }
 
-    fn build(self, need_print_help: bool) -> (Command<T::Result>, String, Vec<String>) {
+    fn build(self, need_print_help: bool) -> (Command<T>, String, Vec<String>) {
         if self.value.is_none() && self.handler.is_none() && self.subcommands.is_empty() {
             panic!(
                 "command \"{}: {}\" has no value or handler or subcommand",
@@ -95,7 +95,7 @@ impl<T: Config> CommandBuilder<T> {
         }
 
         (
-            Command::<T::Result> {
+            Command::<T> {
                 subcommands: Self::build_subcommands(self.subcommands, need_print_help),
                 value: self.value,
                 description: self.description,
@@ -110,9 +110,9 @@ impl<T: Config> CommandBuilder<T> {
     fn build_subcommands(
         subcommands: Vec<CommandBuilder<T>>,
         need_print_help: bool,
-    ) -> HashMap<String, Rc<Command<T::Result>>> {
+    ) -> HashMap<String, Rc<Command<T>>> {
         let mut subcommands_builders = subcommands;
-        let mut commands = <HashMap<String, Rc<Command<T::Result>>>>::default();
+        let mut commands = Default::default();
         let sub_count = subcommands_builders.len();
 
         while let Some(command_builder) = subcommands_builders.pop() {
@@ -131,7 +131,7 @@ impl<T: Config> CommandBuilder<T> {
     }
 }
 
-pub(super) fn format_help<R: Default>(commands: &HashMap<String, Rc<Command<R>>>) -> String {
+pub(super) fn format_help<T: Config>(commands: &HashMap<String, Rc<Command<T>>>) -> String {
     let mut buffer = "Help:".to_string();
     commands.iter().for_each(|(key, cmd)| {
         let description = match cmd.description.as_ref() {
@@ -143,7 +143,7 @@ pub(super) fn format_help<R: Default>(commands: &HashMap<String, Rc<Command<R>>>
     buffer
 }
 
-pub(super) fn help_handler<T: Config>(ctx: Context<T::Result>) -> T::Result {
+pub(super) fn help_handler<T: Config>(ctx: Context<T>) -> T::Result {
     let last = ctx.command_units().len().saturating_sub(1);
     let commands = &ctx.command_units()[last.saturating_sub(1)]
         .command
@@ -155,7 +155,7 @@ pub(super) fn help_handler<T: Config>(ctx: Context<T::Result>) -> T::Result {
 }
 
 pub(super) fn add_command<T: Config>(
-    commands: &mut HashMap<String, Rc<Command<T::Result>>>,
+    commands: &mut HashMap<String, Rc<Command<T>>>,
     command_builder: CommandBuilder<T>,
     need_print_help: bool,
 ) {
@@ -206,7 +206,7 @@ fn add_parameter(
     }
 }
 
-impl<R> std::fmt::Debug for self::Command<R> {
+impl<T: Config> std::fmt::Debug for self::Command<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(stringify!(Command))
             .field("value", &self.value)
@@ -227,5 +227,3 @@ impl<T: Config> std::fmt::Debug for self::CommandBuilder<T> {
             .finish()
     }
 }
-
-impl<R> Command<R> {}

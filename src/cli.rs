@@ -34,7 +34,7 @@ use std::{
 /// ```
 #[derive(Debug)]
 pub struct Cli<T: Config> {
-    root: (String, Rc<Command<T::Result>>),
+    root: (String, Rc<Command<T>>),
     need_print_error: bool,
     need_print_help: bool,
 }
@@ -53,7 +53,7 @@ impl<T: Config> Cli<T> {
             ParametersReaded { params: VecDeque<Rc<Parameter>> },
         }
 
-        let mut ctx = Context::<T::Result> {
+        let mut ctx = Context::<T> {
             units: vec![ContextUnit {
                 command: (self.root.0.as_str(), self.root.1.clone()),
                 parameters: Default::default(),
@@ -232,7 +232,7 @@ impl<T: Config> Cli<T> {
         println!("{}", buffer);
     }
 
-    fn commands(&self) -> &HashMap<String, Rc<Command<T::Result>>> {
+    fn commands(&self) -> &HashMap<String, Rc<Command<T>>> {
         &self.root.1.subcommands
     }
 }
@@ -266,7 +266,7 @@ impl<T: Config> CliBuilder<T> {
 
     /// Build and return `Cli` object.
     pub fn build(&mut self) -> Cli<T> {
-        let mut commands = <HashMap<String, Rc<Command<T::Result>>>>::default();
+        let mut commands = Default::default();
 
         let command_builders = &mut self.commands;
         while let Some(command_builder) = command_builders.pop() {

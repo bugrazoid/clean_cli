@@ -6,7 +6,7 @@ use std::{cell::Cell, collections::HashSet, fmt::Debug, marker::PhantomData, rc:
 
 type Test<R> = DefaultConfig<R>;
 
-fn some_fn(ctx: crate::context::Context<()>) {
+fn some_fn(ctx: crate::context::Context<Test<()>>) {
     if let Some(unit) = ctx.command_units().last() {
         assert_eq!(unit.command.0, "cmd");
     } else {
