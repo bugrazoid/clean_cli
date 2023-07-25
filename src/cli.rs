@@ -35,6 +35,7 @@ use std::{
 #[derive(Debug)]
 pub struct Cli<T: Config> {
     root: (String, Rc<Command<T>>),
+    printer: T::HelpPrinter,
     need_print_error: bool,
     need_print_help: bool,
 }
@@ -42,7 +43,12 @@ pub struct Cli<T: Config> {
 impl<T: Config> Cli<T> {
     /// Create builder
     pub fn builder() -> CliBuilder<T> {
-        CliBuilder::default()
+        CliBuilder {
+            commands: Default::default(),
+            printer: None,
+            need_print_error: Default::default(),
+            need_print_help: Default::default(),
+        }
     }
 
     /// Execute _line_
@@ -59,6 +65,7 @@ impl<T: Config> Cli<T> {
                 parameters: Default::default(),
                 value: None,
             }],
+            printer: &self.printer,
         };
         let mut state = ParseState::ReadFirst;
         let mut pos = 1;
@@ -241,35 +248,40 @@ impl<T: Config> Cli<T> {
 #[derive(Default, Debug)]
 pub struct CliBuilder<T: Config> {
     commands: Vec<CommandBuilder<T>>,
+    printer: Option<T::HelpPrinter>,
     need_print_error: bool,
     need_print_help: bool,
 }
 
 impl<T: Config> CliBuilder<T> {
     /// Add command
-    pub fn command(&mut self, cmd: CommandBuilder<T>) -> &mut Self {
+    pub fn command(mut self, cmd: CommandBuilder<T>) -> Self {
         self.commands.push(cmd);
         self
     }
 
     /// Switch output error message to stdout.
-    pub fn print_error(&mut self, enable: bool) -> &mut Self {
+    pub fn print_error(mut self, enable: bool) -> Self {
         self.need_print_error = enable;
         self
     }
 
     /// Switch output help message to stdout.
-    pub fn print_help(&mut self, enable: bool) -> &mut Self {
+    pub fn print_help(mut self, enable: bool) -> Self {
         self.need_print_help = enable;
         self
     }
 
+    pub fn set_printer(mut self, printer: T::HelpPrinter) -> Self {
+        self.printer = Some(printer);
+        self
+    }
+
     /// Build and return `Cli` object.
-    pub fn build(&mut self) -> Cli<T> {
+    pub fn build(mut self) -> Cli<T> {
         let mut commands = Default::default();
 
-        let command_builders = &mut self.commands;
-        while let Some(command_builder) = command_builders.pop() {
+        while let Some(command_builder) = self.commands.pop() {
             add_command(&mut commands, command_builder, self.need_print_help);
         }
 
@@ -289,6 +301,7 @@ impl<T: Config> CliBuilder<T> {
                     ..Default::default()
                 }),
             ),
+            printer: self.printer.unwrap_or_default(),
             need_print_help: self.need_print_help,
             need_print_error: self.need_print_error,
         }

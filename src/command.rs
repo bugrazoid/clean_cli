@@ -150,7 +150,7 @@ pub(super) fn help_handler<T: Config>(ctx: Context<T>) -> T::Result {
         .1
         .subcommands;
     let buffer = T::HelpFormatter::format(commands);
-    T::HelpPrinter::print(&buffer);
+    ctx.printer().print(buffer);
     T::Result::default()
 }
 

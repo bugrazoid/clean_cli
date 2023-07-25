@@ -4,14 +4,19 @@ use super::{ArgValue, Command, Parameter};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Context<'a, T: Config> {
-    pub(super) units: Vec<ContextUnit<'a, T>>,
+    pub(crate) units: Vec<ContextUnit<'a, T>>,
+    pub(crate) printer: &'a T::HelpPrinter,
 }
 
 impl<'a, T: Config> Context<'a, T> {
     pub fn command_units(&self) -> &Vec<ContextUnit<'a, T>> {
         &self.units
+    }
+
+    pub fn printer(&self) -> &T::HelpPrinter {
+        self.printer
     }
 }
 

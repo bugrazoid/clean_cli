@@ -1,10 +1,39 @@
 use crate::{
-    traits::{Config, DefaultConfig, DefaultHelpFormatter, DefaultHelpPrinter},
+    traits::{Config, DefaultHelpFormatter, DefaultHelpPrinter, HelpFormatter, HelpPrinter},
     ArgType, ArgValue, Cli, CommandBuilder, Parameter,
 };
-use std::{cell::Cell, collections::HashSet, fmt::Debug, marker::PhantomData, rc::Rc};
+use std::{
+    borrow::BorrowMut,
+    cell::{Cell, RefCell},
+    collections::HashSet,
+    fmt::Debug,
+    marker::PhantomData,
+    rc::Rc,
+};
 
-type Test<R> = DefaultConfig<R>;
+pub struct Test<R>(PhantomData<R>);
+impl<R: Default + Debug + 'static> Config for Test<R> {
+    type Result = R;
+    type HelpFormatter = DefaultHelpFormatter;
+    type HelpPrinter = TestPrinter<Self, Self::HelpFormatter>;
+}
+impl<R> Default for Test<R> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
+#[derive(Default)]
+pub struct TestPrinter<T: Config, HF: HelpFormatter<T>>(pub Rc<RefCell<HF::Output>>);
+impl<T: Config, HF: HelpFormatter<T>> HelpPrinter<T, HF> for TestPrinter<T, HF>
+where
+    HF::Output: std::fmt::Display,
+{
+    fn print(&self, input: HF::Output) {
+        println!("{}", &input);
+        *(*self.0).borrow_mut() = input;
+    }
+}
 
 fn some_fn(ctx: crate::context::Context<Test<()>>) {
     if let Some(unit) = ctx.command_units().last() {
@@ -1324,7 +1353,10 @@ fn command_with_mixed_params_and_value() {
 
 #[test]
 fn command_help() {
+    let help_text = Rc::new(RefCell::new(String::new()));
+    let printer = TestPrinter(help_text.clone());
     let cli = <Cli<Test<()>>>::builder()
+        .set_printer(printer)
         .print_help(true)
         .command(
             CommandBuilder::with_name("cmd")
@@ -1347,6 +1379,13 @@ fn command_help() {
 
     //TODO: Compare with etalone
     assert!(cli.exec_line("help").is_ok());
+    assert_eq!(
+        help_text.borrow().as_str(),
+        r"Help:
+another_cmd          
+cmd                  
+help                 This help"
+    );
 }
 
 #[test]
