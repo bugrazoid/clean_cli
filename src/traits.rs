@@ -4,15 +4,15 @@ use crate::Command;
 
 pub trait Config: Default + 'static {
     type Result: Default + Debug + 'static;
-    type HelpFormatter: HelpFormatter<Self>;
-    type HelpPrinter: HelpPrinter<Self, Self::HelpFormatter> + Default;
+    type Formatter: Formatter<Self>;
+    type Printer: Printer<Self, Self::Formatter> + Default;
 }
 
 pub struct DefaultConfig<R>(PhantomData<R>);
 impl<R: Default + Debug + 'static> Config for DefaultConfig<R> {
     type Result = R;
-    type HelpFormatter = DefaultHelpFormatter;
-    type HelpPrinter = DefaultHelpPrinter;
+    type Formatter = DefaultFormatter;
+    type Printer = DefaultPrinter;
 }
 impl<R> Default for DefaultConfig<R> {
     fn default() -> Self {
@@ -20,13 +20,13 @@ impl<R> Default for DefaultConfig<R> {
     }
 }
 
-pub trait HelpPrinter<T: Config, HF: HelpFormatter<T>> {
+pub trait Printer<T: Config, HF: Formatter<T>> {
     fn print(&self, input: HF::Output);
 }
 
 #[derive(Default)]
-pub struct DefaultHelpPrinter;
-impl<T: Config, HF: HelpFormatter<T>> HelpPrinter<T, HF> for DefaultHelpPrinter
+pub struct DefaultPrinter;
+impl<T: Config, HF: Formatter<T>> Printer<T, HF> for DefaultPrinter
 where
     HF::Output: std::fmt::Display,
 {
@@ -35,14 +35,14 @@ where
     }
 }
 
-pub trait HelpFormatter<T: Config> {
+pub trait Formatter<T: Config> {
     type Output;
     fn format(commands: &HashMap<String, Rc<Command<T>>>) -> Self::Output;
 }
 
 #[derive(Default)]
-pub struct DefaultHelpFormatter;
-impl<T: Config> HelpFormatter<T> for DefaultHelpFormatter {
+pub struct DefaultFormatter;
+impl<T: Config> Formatter<T> for DefaultFormatter {
     type Output = String;
 
     fn format(commands: &HashMap<String, Rc<Command<T>>>) -> Self::Output {

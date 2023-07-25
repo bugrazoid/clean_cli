@@ -1,4 +1,3 @@
-use crate::traits;
 use crate::traits::Config;
 
 use super::command::*;
@@ -35,7 +34,7 @@ use std::{
 #[derive(Debug)]
 pub struct Cli<T: Config> {
     root: (String, Rc<Command<T>>),
-    printer: T::HelpPrinter,
+    printer: T::Printer,
     need_print_error: bool,
     need_print_help: bool,
 }
@@ -248,7 +247,7 @@ impl<T: Config> Cli<T> {
 #[derive(Default, Debug)]
 pub struct CliBuilder<T: Config> {
     commands: Vec<CommandBuilder<T>>,
-    printer: Option<T::HelpPrinter>,
+    printer: Option<T::Printer>,
     need_print_error: bool,
     need_print_help: bool,
 }
@@ -272,7 +271,7 @@ impl<T: Config> CliBuilder<T> {
         self
     }
 
-    pub fn set_printer(mut self, printer: T::HelpPrinter) -> Self {
+    pub fn set_printer(mut self, printer: T::Printer) -> Self {
         self.printer = Some(printer);
         self
     }
@@ -399,7 +398,7 @@ fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, Stri
 
 #[cfg(test)]
 mod test {
-    use crate::{ArgType, ArgValue, Cli, CommandBuilder, Parameter};
+    use crate::{ArgType, ArgValue, CommandBuilder, Parameter};
 
     #[test]
     fn split_line() {

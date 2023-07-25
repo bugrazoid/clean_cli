@@ -1,9 +1,8 @@
 use crate::{
-    traits::{Config, DefaultHelpFormatter, DefaultHelpPrinter, HelpFormatter, HelpPrinter},
+    traits::{Config, DefaultFormatter, Formatter, Printer},
     ArgType, ArgValue, Cli, CommandBuilder, Parameter,
 };
 use std::{
-    borrow::BorrowMut,
     cell::{Cell, RefCell},
     collections::HashSet,
     fmt::Debug,
@@ -14,8 +13,8 @@ use std::{
 pub struct Test<R>(PhantomData<R>);
 impl<R: Default + Debug + 'static> Config for Test<R> {
     type Result = R;
-    type HelpFormatter = DefaultHelpFormatter;
-    type HelpPrinter = TestPrinter<Self, Self::HelpFormatter>;
+    type Formatter = DefaultFormatter;
+    type Printer = TestPrinter<Self, Self::Formatter>;
 }
 impl<R> Default for Test<R> {
     fn default() -> Self {
@@ -24,8 +23,8 @@ impl<R> Default for Test<R> {
 }
 
 #[derive(Default)]
-pub struct TestPrinter<T: Config, HF: HelpFormatter<T>>(pub Rc<RefCell<HF::Output>>);
-impl<T: Config, HF: HelpFormatter<T>> HelpPrinter<T, HF> for TestPrinter<T, HF>
+pub struct TestPrinter<T: Config, HF: Formatter<T>>(pub Rc<RefCell<HF::Output>>);
+impl<T: Config, HF: Formatter<T>> Printer<T, HF> for TestPrinter<T, HF>
 where
     HF::Output: std::fmt::Display,
 {
@@ -1377,7 +1376,6 @@ fn command_help() {
         .command(CommandBuilder::with_name("another_cmd").use_value(ArgType::Bool))
         .build();
 
-    //TODO: Compare with etalone
     assert!(cli.exec_line("help").is_ok());
     assert_eq!(
         help_text.borrow().as_str(),
@@ -1390,7 +1388,10 @@ help                 This help"
 
 #[test]
 fn sub_command_help() {
+    let help_text = Rc::new(RefCell::new(String::new()));
+    let printer = TestPrinter(help_text.clone());
     let cli = <Cli<Test<()>>>::builder()
+        .set_printer(printer)
         .print_help(true)
         .command(
             CommandBuilder::with_name("cmd")
@@ -1407,13 +1408,22 @@ fn sub_command_help() {
                         .alias("i")
                         .alias("ii"),
                 )
-                .subcommand(CommandBuilder::with_name("sub").use_value(ArgType::Int)),
+                .subcommand(
+                    CommandBuilder::with_name("sub")
+                        .use_value(ArgType::Int)
+                        .description("sub command"),
+                ),
         )
         .command(CommandBuilder::with_name("another_cmd").use_value(ArgType::Bool))
         .build();
 
-    //TODO: Compare with etalone
     assert!(cli.exec_line("cmd help").is_ok());
+    assert_eq!(
+        help_text.borrow().as_str(),
+        r"Help:
+help                 This help
+sub                  sub command"
+    );
 }
 
 #[test]

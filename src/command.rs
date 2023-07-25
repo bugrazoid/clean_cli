@@ -1,18 +1,9 @@
-use crate::traits::*;
-
-use super::{context::Context, parameter::*};
-
-use std::{
-    borrow::BorrowMut,
-    cell::RefCell,
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-    rc::Rc,
-};
+use crate::{context::Context, parameter::*, traits::*};
+use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap, rc::Rc};
 
 const NO_DESCRIPTION: &str = "";
 
-type CallBack<T: Config> = RefCell<Box<dyn FnMut(Context<T>) -> T::Result>>;
+type CallBack<T> = RefCell<Box<dyn FnMut(Context<T>) -> <T as Config>::Result>>;
 
 /// `CommandBuilder` is a helper using for build [`Command`].
 #[derive(Default)]
@@ -29,11 +20,11 @@ pub struct CommandBuilder<T: Config> {
 /// `Command` stores all associated options, subcommands, values, and handler.
 #[derive(Default)]
 pub struct Command<T: Config> {
-    pub(super) subcommands: HashMap<String, Rc<Command<T>>>,
-    pub(super) value: Option<ArgType>,
-    pub(super) description: Option<String>,
-    pub(super) parameters: HashMap<String, Rc<Parameter>>,
-    pub(super) exec: Option<CallBack<T>>,
+    pub(crate) subcommands: HashMap<String, Rc<Command<T>>>,
+    pub(crate) value: Option<ArgType>,
+    pub(crate) description: Option<String>,
+    pub(crate) parameters: HashMap<String, Rc<Parameter>>,
+    pub(crate) exec: Option<CallBack<T>>,
 }
 
 impl<T: Config> CommandBuilder<T> {
@@ -131,7 +122,7 @@ impl<T: Config> CommandBuilder<T> {
     }
 }
 
-pub(super) fn format_help<T: Config>(commands: &HashMap<String, Rc<Command<T>>>) -> String {
+pub(crate) fn format_help<T: Config>(commands: &HashMap<String, Rc<Command<T>>>) -> String {
     let mut buffer = "Help:".to_string();
     commands.iter().for_each(|(key, cmd)| {
         let description = match cmd.description.as_ref() {
@@ -143,18 +134,18 @@ pub(super) fn format_help<T: Config>(commands: &HashMap<String, Rc<Command<T>>>)
     buffer
 }
 
-pub(super) fn help_handler<T: Config>(ctx: Context<T>) -> T::Result {
+pub(crate) fn help_handler<T: Config>(ctx: Context<T>) -> T::Result {
     let last = ctx.command_units().len().saturating_sub(1);
     let commands = &ctx.command_units()[last.saturating_sub(1)]
         .command
         .1
         .subcommands;
-    let buffer = T::HelpFormatter::format(commands);
+    let buffer = T::Formatter::format(commands);
     ctx.printer().print(buffer);
     T::Result::default()
 }
 
-pub(super) fn add_command<T: Config>(
+pub(crate) fn add_command<T: Config>(
     commands: &mut HashMap<String, Rc<Command<T>>>,
     command_builder: CommandBuilder<T>,
     need_print_help: bool,
@@ -207,7 +198,7 @@ fn add_parameter(
 }
 
 impl<T: Config> std::fmt::Debug for self::Command<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(stringify!(Command))
             .field("value", &self.value)
             .field("options", &self.parameters)
@@ -218,7 +209,7 @@ impl<T: Config> std::fmt::Debug for self::Command<T> {
 }
 
 impl<T: Config> std::fmt::Debug for self::CommandBuilder<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(stringify!(CommandBuilder))
             .field("value", &self.value)
             .field("options", &self.parameters)

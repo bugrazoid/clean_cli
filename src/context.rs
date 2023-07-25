@@ -7,7 +7,7 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct Context<'a, T: Config> {
     pub(crate) units: Vec<ContextUnit<'a, T>>,
-    pub(crate) printer: &'a T::HelpPrinter,
+    pub(crate) printer: &'a T::Printer,
 }
 
 impl<'a, T: Config> Context<'a, T> {
@@ -15,16 +15,16 @@ impl<'a, T: Config> Context<'a, T> {
         &self.units
     }
 
-    pub fn printer(&self) -> &T::HelpPrinter {
+    pub fn printer(&self) -> &T::Printer {
         self.printer
     }
 }
 
 #[derive(Debug)]
 pub struct ContextUnit<'a, T: Config> {
-    pub(super) command: (&'a str, Rc<Command<T>>),
-    pub(super) parameters: HashMap<String, (Rc<Parameter>, ArgValue)>,
-    pub(super) value: Option<ArgValue>,
+    pub(crate) command: (&'a str, Rc<Command<T>>),
+    pub(crate) parameters: HashMap<String, (Rc<Parameter>, ArgValue)>,
+    pub(crate) value: Option<ArgValue>,
 }
 
 impl<'a, T: Config> ContextUnit<'a, T> {

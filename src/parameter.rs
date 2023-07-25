@@ -25,18 +25,18 @@ impl Default for ArgType {
 /// Command parameter
 #[derive(Debug)]
 pub struct Parameter {
-    pub(super) name: String,
-    pub(super) value_type: ArgType,
-    pub(super) description: String,
+    pub(crate) name: String,
+    pub(crate) value_type: ArgType,
+    pub(crate) description: String,
 }
 
 /// Buildr for command parameter
 #[derive(Default)]
 pub struct ParameterBuilder<'a> {
-    pub(super) name: String,
-    pub(super) aliases: Vec<String>,
-    pub(super) description: Option<&'a str>,
-    pub(super) value_type: ArgType,
+    pub(crate) name: String,
+    pub(crate) aliases: Vec<String>,
+    pub(crate) description: Option<&'a str>,
+    pub(crate) value_type: ArgType,
 }
 
 impl Parameter {
