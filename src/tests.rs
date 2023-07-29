@@ -1,5 +1,5 @@
 use crate::{
-    traits::{Config, DefaultFormatter, Formatter, Printer},
+    traits::{Config, DefaultHelpFormatter, Formatter, Printer},
     ArgType, ArgValue, Cli, CommandBuilder, Parameter,
 };
 use std::{
@@ -13,8 +13,8 @@ use std::{
 pub struct Test<R>(PhantomData<R>);
 impl<R: Default + Debug + 'static> Config for Test<R> {
     type Result = R;
-    type Formatter = DefaultFormatter;
-    type Printer = TestPrinter<Self, Self::Formatter>;
+    type HelpFormatter = DefaultHelpFormatter;
+    type Printer = TestPrinter<Self, Self::HelpFormatter>;
 }
 impl<R> Default for Test<R> {
     fn default() -> Self {

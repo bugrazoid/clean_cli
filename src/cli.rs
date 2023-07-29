@@ -398,7 +398,7 @@ fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, Stri
 
 #[cfg(test)]
 mod test {
-    use crate::{ArgType, ArgValue, CommandBuilder, Parameter};
+    use crate::{ArgType, ArgValue};
 
     #[test]
     fn split_line() {

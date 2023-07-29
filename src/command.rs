@@ -140,7 +140,7 @@ pub(crate) fn help_handler<T: Config>(ctx: Context<T>) -> T::Result {
         .command
         .1
         .subcommands;
-    let buffer = T::Formatter::format(commands);
+    let buffer = T::HelpFormatter::format(commands);
     ctx.printer().print(buffer);
     T::Result::default()
 }

@@ -4,14 +4,14 @@ use crate::Command;
 
 pub trait Config: Default + 'static {
     type Result: Default + Debug + 'static;
-    type Formatter: Formatter<Self>;
-    type Printer: Printer<Self, Self::Formatter> + Default;
+    type HelpFormatter: Formatter<Self>;
+    type Printer: Printer<Self, Self::HelpFormatter> + Default;
 }
 
 pub struct DefaultConfig<R>(PhantomData<R>);
 impl<R: Default + Debug + 'static> Config for DefaultConfig<R> {
     type Result = R;
-    type Formatter = DefaultFormatter;
+    type HelpFormatter = DefaultHelpFormatter;
     type Printer = DefaultPrinter;
 }
 impl<R> Default for DefaultConfig<R> {
@@ -41,8 +41,8 @@ pub trait Formatter<T: Config> {
 }
 
 #[derive(Default)]
-pub struct DefaultFormatter;
-impl<T: Config> Formatter<T> for DefaultFormatter {
+pub struct DefaultHelpFormatter;
+impl<T: Config> Formatter<T> for DefaultHelpFormatter {
     type Output = String;
 
     fn format(commands: &HashMap<String, Rc<Command<T>>>) -> Self::Output {
