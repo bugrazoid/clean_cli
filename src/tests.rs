@@ -14,7 +14,8 @@ pub struct Test<R>(PhantomData<R>);
 impl<R: Default + Debug + 'static> Config for Test<R> {
     type Result = R;
     type HelpFormatter = DefaultHelpFormatter;
-    type Printer = TestPrinter<Self, Self::HelpFormatter>;
+    type PrinterInput = String;
+    type Printer = TestPrinter<Self>;
 }
 impl<R> Default for Test<R> {
     fn default() -> Self {
@@ -23,12 +24,12 @@ impl<R> Default for Test<R> {
 }
 
 #[derive(Default)]
-pub struct TestPrinter<T: Config, HF: Formatter<T>>(pub Rc<RefCell<HF::Output>>);
-impl<T: Config, HF: Formatter<T>> Printer<T, HF> for TestPrinter<T, HF>
+pub struct TestPrinter<T: Config>(pub Rc<RefCell<T::PrinterInput>>);
+impl<T: Config> Printer<T> for TestPrinter<T>
 where
-    HF::Output: std::fmt::Display,
+    T::PrinterInput: std::fmt::Display,
 {
-    fn print(&self, input: HF::Output) {
+    fn print(&self, input: T::PrinterInput) {
         println!("{}", &input);
         *(*self.0).borrow_mut() = input;
     }

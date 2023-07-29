@@ -5,13 +5,15 @@ use crate::Command;
 pub trait Config: Default + 'static {
     type Result: Default + Debug + 'static;
     type HelpFormatter: Formatter<Self>;
-    type Printer: Printer<Self, Self::HelpFormatter> + Default;
+    type PrinterInput;
+    type Printer: Printer<Self> + Default;
 }
 
 pub struct DefaultConfig<R>(PhantomData<R>);
 impl<R: Default + Debug + 'static> Config for DefaultConfig<R> {
     type Result = R;
     type HelpFormatter = DefaultHelpFormatter;
+    type PrinterInput = String;
     type Printer = DefaultPrinter;
 }
 impl<R> Default for DefaultConfig<R> {
@@ -20,32 +22,32 @@ impl<R> Default for DefaultConfig<R> {
     }
 }
 
-pub trait Printer<T: Config, HF: Formatter<T>> {
-    fn print(&self, input: HF::Output);
+pub trait Printer<T: Config> {
+    fn print(&self, input: T::PrinterInput);
 }
 
 #[derive(Default)]
 pub struct DefaultPrinter;
-impl<T: Config, HF: Formatter<T>> Printer<T, HF> for DefaultPrinter
+impl<T: Config> Printer<T> for DefaultPrinter
 where
-    HF::Output: std::fmt::Display,
+    T::PrinterInput: std::fmt::Display,
 {
-    fn print(&self, input: HF::Output) {
+    fn print(&self, input: T::PrinterInput) {
         println!("{}", input);
     }
 }
 
 pub trait Formatter<T: Config> {
-    type Output;
-    fn format(commands: &HashMap<String, Rc<Command<T>>>) -> Self::Output;
+    fn format(commands: &HashMap<String, Rc<Command<T>>>) -> T::PrinterInput;
 }
 
 #[derive(Default)]
 pub struct DefaultHelpFormatter;
-impl<T: Config> Formatter<T> for DefaultHelpFormatter {
-    type Output = String;
-
-    fn format(commands: &HashMap<String, Rc<Command<T>>>) -> Self::Output {
+impl<T: Config> Formatter<T> for DefaultHelpFormatter
+where
+    T::PrinterInput: From<String>,
+{
+    fn format(commands: &HashMap<String, Rc<Command<T>>>) -> T::PrinterInput {
         let mut buffer = "Help:".to_string();
         let mut keys: Vec<_> = commands.keys().collect();
         keys.sort();
@@ -57,6 +59,6 @@ impl<T: Config> Formatter<T> for DefaultHelpFormatter {
             };
             buffer.push_str(format!("\n{:<20} {description}", key).as_str());
         });
-        buffer
+        buffer.into()
     }
 }
