@@ -136,11 +136,8 @@ pub(crate) fn format_help<T: Config>(commands: &HashMap<String, Rc<Command<T>>>)
 
 pub(crate) fn help_handler<T: Config>(ctx: Context<T>) -> T::Result {
     let last = ctx.command_units().len().saturating_sub(1);
-    let commands = &ctx.command_units()[last.saturating_sub(1)]
-        .command
-        .1
-        .subcommands;
-    let buffer = T::HelpFormatter::format(commands);
+    let command = &ctx.command_units()[last.saturating_sub(1)].command.1;
+    let buffer = T::HelpFormatter::format(command);
     ctx.printer().print(buffer);
     T::Result::default()
 }

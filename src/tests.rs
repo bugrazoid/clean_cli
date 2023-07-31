@@ -1,5 +1,5 @@
 use crate::{
-    traits::{Config, DefaultHelpFormatter, Formatter, Printer},
+    traits::{Config, DefaultHelpFormatter, Printer},
     ArgType, ArgValue, Cli, CommandBuilder, Parameter,
 };
 use std::{
@@ -1381,6 +1381,7 @@ fn command_help() {
     assert_eq!(
         help_text.borrow().as_str(),
         r"Help:
+----------------------------------------
 another_cmd          
 cmd                  
 help                 This help"
@@ -1401,13 +1402,15 @@ fn sub_command_help() {
                     Parameter::with_name("bool")
                         .value_type(ArgType::Bool)
                         .alias("b")
-                        .alias("bb"),
+                        .alias("bb")
+                        .description("Boolean param"),
                 )
                 .parameter(
                     Parameter::with_name("int")
                         .value_type(ArgType::Int)
                         .alias("i")
-                        .alias("ii"),
+                        .alias("ii")
+                        .description("Integer param"),
                 )
                 .subcommand(
                     CommandBuilder::with_name("sub")

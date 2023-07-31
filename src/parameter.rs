@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 /// Contains value for commands and parameters
 #[derive(Debug, Clone)]
 pub enum ArgValue {
@@ -8,17 +10,27 @@ pub enum ArgValue {
 }
 
 /// Set value type for commands and parameters
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub enum ArgType {
+    #[default]
     Bool,
     Int,
     Float,
     String,
 }
 
-impl Default for ArgType {
-    fn default() -> Self {
-        ArgType::Bool
+impl Display for ArgType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match *self {
+                Self::Bool => "bool",
+                Self::Int => "int",
+                Self::Float => "float",
+                Self::String => "string",
+            }
+        )
     }
 }
 
