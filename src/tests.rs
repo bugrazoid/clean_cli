@@ -755,15 +755,13 @@ fn command_with_subcommand() {
         ))
         .build();
 
-    match cli.exec_line("cmd") {
-        Ok(_) => panic!("error expected"),
-        Err(_) => {}
+    if cli.exec_line("cmd").is_ok() {
+        panic!("error expected")
     }
     assert!(!is_triggered.get());
 
-    match cli.exec_line("cmd sub") {
-        Ok(_) => {}
-        Err(e) => panic!("{:?}", e),
+    if let Err(e) = cli.exec_line("cmd sub") {
+        panic!("{:?}", e)
     }
     assert!(is_triggered.get());
 }
@@ -1278,11 +1276,9 @@ fn command_with_mixed_params_and_value() {
                     expect_params.insert("string");
                     expect_params.insert("value");
 
-                    if let Some(arg) = &ctx.units.last().unwrap().value() {
-                        if let ArgValue::Bool(v) = arg {
-                            assert!(!*v);
-                            expect_params.remove("value");
-                        }
+                    if let Some(ArgValue::Bool(v)) = &ctx.units.last().unwrap().value() {
+                        assert!(!*v);
+                        expect_params.remove("value");
                     }
 
                     if let Some((param, arg)) = &ctx.units.last().unwrap().parameters.get("bool") {

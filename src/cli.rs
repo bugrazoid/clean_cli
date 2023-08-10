@@ -73,7 +73,7 @@ impl<T: Config> Cli<T> {
         for arg in args {
             match state {
                 ParseState::ReadFirst => {
-                    if arg.starts_with("--") || arg.starts_with("-") {
+                    if arg.starts_with("--") || arg.starts_with('-') {
                         return self.make_error(Kind::CantExecuteParameter, arg.to_string());
                     } else if let Some(cmd) = self.commands().get(arg) {
                         ctx.units.push(ContextUnit {
@@ -92,8 +92,7 @@ impl<T: Config> Cli<T> {
                     let cmd = last_unit.command.1.clone();
                     let mut new_state: Option<ParseState> = None;
 
-                    if arg.starts_with("--") {
-                        let arg = &arg[2..];
+                    if let Some(arg) = arg.strip_prefix("--") {
                         if let Some(p) = cmd.parameters.get(arg) {
                             if let ArgType::Bool = p.value_type {
                                 if let Some(p) = last_unit.command.1.parameters.get(arg) {
@@ -109,8 +108,7 @@ impl<T: Config> Cli<T> {
                         } else {
                             return self.make_error(Kind::NotParameter, arg.to_string());
                         }
-                    } else if arg.starts_with("-") {
-                        let arg = &arg[1..];
+                    } else if let Some(arg) = arg.strip_prefix('-') {
                         let mut params = VecDeque::with_capacity(arg.len());
                         for a in arg.chars() {
                             let s = a.to_string();
@@ -317,7 +315,7 @@ fn split_line(line: &str) -> impl Iterator<Item = &str> {
     let line_len = line.len();
     let result = line
         .char_indices()
-        .map(move |(i, c)| {
+        .filter_map(move |(i, c)| {
             let mut result: Option<_> = None;
             if !c.is_whitespace() {
                 match state {
@@ -355,14 +353,12 @@ fn split_line(line: &str) -> impl Iterator<Item = &str> {
                 }
             }
             result
-        })
-        .filter(|x| x.is_some())
-        .map(|s| s.unwrap());
+        });
     result
 }
 
 fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, String> {
-    if arg.starts_with("-") && !(arg_type != ArgType::Int || arg_type != ArgType::Float) {
+    if arg.starts_with('-') && !(arg_type != ArgType::Int || arg_type != ArgType::Float) {
         return Err(format!("Seems {} is not a value", arg));
     }
 

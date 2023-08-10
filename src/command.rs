@@ -174,7 +174,7 @@ fn add_parameter(
     parameters: &mut HashMap<String, Rc<Parameter>>,
     parameter_builder: ParameterBuilder,
 ) {
-    if let Some(_) = parameters.get(&parameter_builder.name) {
+    if parameters.get(&parameter_builder.name).is_some() {
         panic!(
             "parameter with name \"{}\" already exist",
             &parameter_builder.name
@@ -187,7 +187,7 @@ fn add_parameter(
         description: parameter_builder.description.unwrap_or("").into(),
     });
 
-    parameters.insert(parameter_builder.name.into(), parameter.clone());
+    parameters.insert(parameter_builder.name, parameter.clone());
     let mut aliases = parameter_builder.aliases;
     while let Some(alias) = aliases.pop() {
         parameters.insert(alias, parameter.clone());
