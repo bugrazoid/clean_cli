@@ -74,7 +74,7 @@ impl<T: Config> Cli<T> {
             match state {
                 ParseState::ReadFirst => {
                     if arg.starts_with("--") || arg.starts_with('-') {
-                        return self.make_error(Kind::CantExecuteParameter, arg.to_string());
+                        return self.make_error(Error::CantExecuteParameter, arg.to_string());
                     } else if let Some(cmd) = self.commands().get(arg) {
                         ctx.units.push(ContextUnit {
                             command: (arg, cmd.clone()),
@@ -83,7 +83,7 @@ impl<T: Config> Cli<T> {
                         });
                         state = ParseState::ReadNext;
                     } else {
-                        return self.make_error(Kind::NotCommand, arg.to_string());
+                        return self.make_error(Error::NotCommand, arg.to_string());
                     }
                 }
 
@@ -106,7 +106,7 @@ impl<T: Config> Cli<T> {
                                 new_state = Some(ParseState::ParametersReaded { params });
                             }
                         } else {
-                            return self.make_error(Kind::NotParameter, arg.to_string());
+                            return self.make_error(Error::NotParameter, arg.to_string());
                         }
                     } else if let Some(arg) = arg.strip_prefix('-') {
                         let mut params = VecDeque::with_capacity(arg.len());
@@ -124,7 +124,7 @@ impl<T: Config> Cli<T> {
                                     params.push_back(p.clone());
                                 }
                             } else {
-                                return self.make_error(Kind::NotParameter, arg.to_string());
+                                return self.make_error(Error::NotParameter, arg.to_string());
                             }
                         }
 
@@ -145,11 +145,11 @@ impl<T: Config> Cli<T> {
                                 last_unit.value = Some(value);
                             }
                             Err(details) => {
-                                return self.make_error(Kind::ValueParseFailed, details)
+                                return self.make_error(Error::ValueParseFailed, details)
                             }
                         };
                     } else {
-                        return self.make_error(Kind::NotCommand, arg.to_string());
+                        return self.make_error(Error::NotCommand, arg.to_string());
                     }
 
                     if let Some(s) = new_state {
@@ -173,7 +173,7 @@ impl<T: Config> Cli<T> {
                             }
                         }
                         Err(details) => {
-                            return self.make_error(Kind::ValueParseFailed, details);
+                            return self.make_error(Error::ValueParseFailed, details);
                         }
                     };
                 }
@@ -183,7 +183,7 @@ impl<T: Config> Cli<T> {
         if let ParseState::ParametersReaded { mut params } = state {
             if params.len() > 1 {
                 return self.make_error(
-                    Kind::ParserError,
+                    Error::ParserError,
                     format!("Wrong params value: {}", params.len()),
                 );
             }
@@ -192,7 +192,7 @@ impl<T: Config> Cli<T> {
                 ArgType::Bool => {}
                 _ => {
                     return self.make_error(
-                        Kind::ParameterValueMissed,
+                        Error::ParameterValueMissed,
                         format!("parametr \"{}\" has no value", param.name),
                     )
                 }
@@ -206,7 +206,7 @@ impl<T: Config> Cli<T> {
                 return Ok(f.borrow_mut()(ctx));
             } else {
                 return self.make_error(
-                    Kind::CantExecuteCommand,
+                    Error::CantExecuteCommand,
                     format!("No handler for command: {}", name),
                 );
             }
@@ -215,8 +215,7 @@ impl<T: Config> Cli<T> {
         Ok(Default::default())
     }
 
-    fn make_error(&self, kind: Kind, details: String) -> Result<T::Result, Error> {
-        let error = Error { kind, details };
+    fn make_error(&self, error: Error, details: String) -> Result<T::Result, Error> {
         if self.need_print_error {
             self.print_error(&error);
         }
@@ -313,47 +312,45 @@ fn split_line(line: &str) -> impl Iterator<Item = &str> {
 
     let mut state = LineParseState::EndWord;
     let line_len = line.len();
-    let result = line
-        .char_indices()
-        .filter_map(move |(i, c)| {
-            let mut result: Option<_> = None;
-            if !c.is_whitespace() {
-                match state {
-                    LineParseState::EndWord => {
-                        let has_quote = c == '\'' || c == '\"';
-                        state = LineParseState::StartWord {
-                            start: if has_quote { i + 1 } else { i },
-                            quote: if has_quote { Some(c) } else { None },
-                        }
-                    }
-                    LineParseState::StartWord { start, quote } => {
-                        if let Some(q) = quote {
-                            if q == c {
-                                result = Some(&line[start..i]);
-                                state = LineParseState::EndWord;
-                            }
-                        }
+    let result = line.char_indices().filter_map(move |(i, c)| {
+        let mut result: Option<_> = None;
+        if !c.is_whitespace() {
+            match state {
+                LineParseState::EndWord => {
+                    let has_quote = c == '\'' || c == '\"';
+                    state = LineParseState::StartWord {
+                        start: if has_quote { i + 1 } else { i },
+                        quote: if has_quote { Some(c) } else { None },
                     }
                 }
-
-                if line_len == i + 1 {
-                    if let LineParseState::StartWord { start, quote: _ } = state {
-                        result = Some(&line[start..]);
-                    }
-                }
-            } else {
-                match state {
-                    LineParseState::EndWord => {}
-                    LineParseState::StartWord { start, quote } => {
-                        if quote.is_none() {
+                LineParseState::StartWord { start, quote } => {
+                    if let Some(q) = quote {
+                        if q == c {
                             result = Some(&line[start..i]);
                             state = LineParseState::EndWord;
                         }
                     }
                 }
             }
-            result
-        });
+
+            if line_len == i + 1 {
+                if let LineParseState::StartWord { start, quote: _ } = state {
+                    result = Some(&line[start..]);
+                }
+            }
+        } else {
+            match state {
+                LineParseState::EndWord => {}
+                LineParseState::StartWord { start, quote } => {
+                    if quote.is_none() {
+                        result = Some(&line[start..i]);
+                        state = LineParseState::EndWord;
+                    }
+                }
+            }
+        }
+        result
+    });
     result
 }
 

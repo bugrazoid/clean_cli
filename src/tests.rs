@@ -1,7 +1,9 @@
 use crate::{
+    error::Error,
     traits::{Config, DefaultHelpFormatter, Printer},
     ArgType, ArgValue, Cli, CommandBuilder, Parameter,
 };
+use assert2::{check, let_assert};
 use std::{
     cell::{Cell, RefCell},
     collections::HashSet,
@@ -239,21 +241,11 @@ fn command_with_int_param_no_value() {
         )
         .build();
 
-    match cli.exec_line("cmd --int") {
-        Ok(_) => panic!("error expected"),
-        Err(err) => match err.kind() {
-            crate::error::Kind::ParameterValueMissed => {}
-            _ => panic!("Wrong error: {:?}", err),
-        },
-    }
+    let_assert!(Err(e) = cli.exec_line("cmd --int"));
+    check!(e == Error::ParameterValueMissed);
 
-    match cli.exec_line("cmd -i") {
-        Ok(_) => panic!("error expected"),
-        Err(err) => match err.kind() {
-            crate::error::Kind::ParameterValueMissed => {}
-            _ => panic!("Wrong error: {:?}", err),
-        },
-    }
+    let_assert!(Err(e) = cli.exec_line("cmd -i"));
+    check!(e == Error::ParameterValueMissed);
 }
 
 #[test]
@@ -358,21 +350,11 @@ fn command_with_float_param_no_value() {
         )
         .build();
 
-    match cli.exec_line("cmd --float") {
-        Ok(_) => panic!("error expected"),
-        Err(err) => match err.kind() {
-            crate::error::Kind::ParameterValueMissed => {}
-            _ => panic!("Wrong error: {:?}", err),
-        },
-    }
+    let_assert!(Err(e) = cli.exec_line("cmd --float"));
+    check!(e == Error::ParameterValueMissed);
 
-    match cli.exec_line("cmd -f") {
-        Ok(_) => panic!("error expected"),
-        Err(err) => match err.kind() {
-            crate::error::Kind::ParameterValueMissed => {}
-            _ => panic!("Wrong error: {:?}", err),
-        },
-    }
+    let_assert!(Err(e) = cli.exec_line("cmd -f"));
+    check!(e == crate::error::Error::ParameterValueMissed);
 }
 
 #[test]
@@ -478,21 +460,11 @@ fn command_with_string_param_no_value() {
         )
         .build();
 
-    match cli.exec_line("cmd --string") {
-        Ok(_) => panic!("error expected"),
-        Err(err) => match err.kind() {
-            crate::error::Kind::ParameterValueMissed => {}
-            _ => panic!("Wrong error: {:?}", err),
-        },
-    }
+    let_assert!(Err(e) = cli.exec_line("cmd --string"));
+    check!(e == Error::ParameterValueMissed);
 
-    match cli.exec_line("cmd -s") {
-        Ok(_) => panic!("error expected"),
-        Err(err) => match err.kind() {
-            crate::error::Kind::ParameterValueMissed => {}
-            _ => panic!("Wrong error: {:?}", err),
-        },
-    }
+    let_assert!(Err(e) = cli.exec_line("cmd -s"));
+    check!(e == Error::ParameterValueMissed);
 }
 
 #[test]

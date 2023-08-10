@@ -14,4 +14,8 @@ categories = ["command-line-interface"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dev-dependencies]
+assert2 = "0.3.11"
 rand = "0.8"
+
+[dependencies]
+thiserror = "1.0.44"
