@@ -1381,10 +1381,10 @@ fn command_help() {
     assert_eq!(
         help_text.borrow().as_str(),
         r"Help:
-----------------------------------------
-another_cmd          
-cmd                  
-help                 This help"
+  Subcommands:
+    another_cmd          
+    cmd                  
+    help                 This help"
     );
 }
 
@@ -1425,8 +1425,13 @@ fn sub_command_help() {
     assert_eq!(
         help_text.borrow().as_str(),
         r"Help:
-help                 This help
-sub                  sub command"
+  Parameters:
+    --bool,-b,--bb      <bool>  Boolean param
+    --int,-i,--ii       <int>   Integer param
+----------------------------------------
+  Subcommands:
+    help                 This help
+    sub                  sub command"
     );
 }
 
