@@ -70,7 +70,7 @@ impl<T: Config> Cli<T> {
         let mut pos = 1;
         let args = split_line(line);
 
-        for arg in args {
+        for (arg, span) in args {
             match state {
                 ParseState::ReadFirst => {
                     if arg.starts_with("--") || arg.starts_with('-') {
@@ -304,7 +304,7 @@ impl<T: Config> CliBuilder<T> {
     }
 }
 
-fn split_line(line: &str) -> impl Iterator<Item = &str> {
+fn split_line(line: &str) -> impl Iterator<Item = (&str, Span)> {
     enum LineParseState {
         EndWord,
         StartWord { start: usize, quote: Option<char> },
@@ -312,8 +312,9 @@ fn split_line(line: &str) -> impl Iterator<Item = &str> {
 
     let mut state = LineParseState::EndWord;
     let line_len = line.len();
+
     let result = line.char_indices().filter_map(move |(i, c)| {
-        let mut result: Option<_> = None;
+        let mut result: Option<(&str, Span)> = None;
         if !c.is_whitespace() {
             match state {
                 LineParseState::EndWord => {
@@ -326,7 +327,14 @@ fn split_line(line: &str) -> impl Iterator<Item = &str> {
                 LineParseState::StartWord { start, quote } => {
                     if let Some(q) = quote {
                         if q == c {
-                            result = Some(&line[start..i]);
+                            result = Some((
+                                &line[start..i],
+                                Span {
+                                    source: line,
+                                    begin: start,
+                                    end: i,
+                                },
+                            ));
                             state = LineParseState::EndWord;
                         }
                     }
@@ -335,7 +343,14 @@ fn split_line(line: &str) -> impl Iterator<Item = &str> {
 
             if line_len == i + 1 {
                 if let LineParseState::StartWord { start, quote: _ } = state {
-                    result = Some(&line[start..]);
+                    result = Some((
+                        &line[start..],
+                        Span {
+                            source: line,
+                            begin: start,
+                            end: line_len,
+                        },
+                    ));
                 }
             }
         } else {
@@ -343,7 +358,14 @@ fn split_line(line: &str) -> impl Iterator<Item = &str> {
                 LineParseState::EndWord => {}
                 LineParseState::StartWord { start, quote } => {
                     if quote.is_none() {
-                        result = Some(&line[start..i]);
+                        result = Some((
+                            &line[start..i],
+                            Span {
+                                source: line,
+                                begin: start,
+                                end: i,
+                            },
+                        ));
                         state = LineParseState::EndWord;
                     }
                 }
@@ -392,44 +414,53 @@ fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, Stri
 #[cfg(test)]
 mod test {
     use crate::{ArgType, ArgValue};
+    use assert2::check;
+
+    macro_rules! check_arg {
+        ($record:expr, $etalon:literal) => {
+            let (arg, span) = &$record;
+            check!(*arg == span.arg());
+            check!(*arg == $etalon);
+        };
+    }
 
     #[test]
     fn split_line() {
         let line = "one two three";
-        let v = super::split_line(line).collect::<Vec<&str>>();
-        assert_eq!(v[0], "one");
-        assert_eq!(v[1], "two");
-        assert_eq!(v[2], "three");
+        let v = super::split_line(line).collect::<Vec<_>>();
+        check_arg!(v[0], "one");
+        check_arg!(v[1], "two");
+        check_arg!(v[2], "three");
     }
 
     #[test]
     fn split_line_with_quotes() {
         let line = "one \"two\" three";
-        let v = super::split_line(line).collect::<Vec<&str>>();
-        assert_eq!(v[0], "one");
-        assert_eq!(v[1], "two");
-        assert_eq!(v[2], "three");
+        let v = super::split_line(line).collect::<Vec<_>>();
+        check_arg!(v[0], "one");
+        check_arg!(v[1], "two");
+        check_arg!(v[2], "three");
 
         let line = "one \"two; two and half\" three";
-        let v = super::split_line(line).collect::<Vec<&str>>();
-        assert_eq!(v[0], "one");
-        assert_eq!(v[1], "two; two and half");
-        assert_eq!(v[2], "three");
+        let v = super::split_line(line).collect::<Vec<_>>();
+        check_arg!(v[0], "one");
+        check_arg!(v[1], "two; two and half");
+        check_arg!(v[2], "three");
 
         let line = "one two \"three\"";
-        let v = super::split_line(line).collect::<Vec<&str>>();
-        assert_eq!(v[0], "one");
-        assert_eq!(v[1], "two");
-        assert_eq!(v[2], "three");
+        let v = super::split_line(line).collect::<Vec<_>>();
+        check_arg!(v[0], "one");
+        check_arg!(v[1], "two");
+        check_arg!(v[2], "three");
     }
 
     #[test]
     fn split_line_with_bad_quotes() {
         let line = "one two \"three";
-        let v = super::split_line(line).collect::<Vec<&str>>();
-        assert_eq!(v[0], "one");
-        assert_eq!(v[1], "two");
-        assert_eq!(v[2], "three");
+        let v = super::split_line(line).collect::<Vec<_>>();
+        check_arg!(v[0], "one");
+        check_arg!(v[1], "two");
+        check_arg!(v[2], "three");
     }
 
     #[test]
