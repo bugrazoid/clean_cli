@@ -66,12 +66,23 @@ fn command() {
         }))
         .build();
 
-    match cli.exec_line("cmd") {
-        Ok(_) => {}
-        Err(e) => panic!("{:?}", e),
-    }
-
+    check!(let Ok(_) = cli.exec("cmd"));
     assert!(is_triggered.get());
+}
+
+#[test]
+fn param_instead_of_command() {
+    let is_triggered = Rc::new(Cell::new(false));
+    let is_triggered_closure = is_triggered.clone();
+    let cli = <Cli<Test<()>>>::builder()
+        .command(CommandBuilder::with_name("cmd").handler(move |_| {
+            is_triggered_closure.set(true);
+        }))
+        .build();
+
+    let_assert!(Err(e) = cli.exec("-cmd"));
+    check!(matches!(e, Error::CommandExpected(_)));
+    check!(!is_triggered.get());
 }
 
 #[test]
@@ -98,22 +109,22 @@ fn command_with_bool_param() {
         )
         .build();
 
-    match cli.exec_line("cmd --flag") {
+    match cli.exec("cmd --flag") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --fl") {
+    match cli.exec("cmd --fl") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -f") {
+    match cli.exec("cmd -f") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -f") {
+    match cli.exec("cmd -f") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -161,7 +172,7 @@ fn command_with_two_bool_param() {
         )
         .build();
 
-    match cli.exec_line("cmd --flag1") {
+    match cli.exec("cmd --flag1") {
         Ok(_) => {
             assert!(flags.get().0);
             assert!(!flags.get().1);
@@ -170,7 +181,7 @@ fn command_with_two_bool_param() {
     }
     flags.set((false, false));
 
-    match cli.exec_line("cmd -1") {
+    match cli.exec("cmd -1") {
         Ok(_) => {
             assert!(flags.get().0);
             assert!(!flags.get().1);
@@ -179,7 +190,7 @@ fn command_with_two_bool_param() {
     }
     flags.set((false, false));
 
-    match cli.exec_line("cmd --flag2") {
+    match cli.exec("cmd --flag2") {
         Ok(_) => {
             assert!(!flags.get().0);
             assert!(flags.get().1);
@@ -188,7 +199,7 @@ fn command_with_two_bool_param() {
     }
     flags.set((false, false));
 
-    match cli.exec_line("cmd -2") {
+    match cli.exec("cmd -2") {
         Ok(_) => {
             assert!(!flags.get().0);
             assert!(flags.get().1);
@@ -197,7 +208,7 @@ fn command_with_two_bool_param() {
     }
     flags.set((false, false));
 
-    match cli.exec_line("cmd --flag1 --flag2") {
+    match cli.exec("cmd --flag1 --flag2") {
         Ok(_) => {
             assert!(flags.get().0);
             assert!(flags.get().1);
@@ -206,7 +217,7 @@ fn command_with_two_bool_param() {
     }
     flags.set((false, false));
 
-    match cli.exec_line("cmd -1 -2") {
+    match cli.exec("cmd -1 -2") {
         Ok(_) => {
             assert!(flags.get().0);
             assert!(flags.get().1);
@@ -215,7 +226,7 @@ fn command_with_two_bool_param() {
     }
     flags.set((false, false));
 
-    match cli.exec_line("cmd -12") {
+    match cli.exec("cmd -12") {
         Ok(_) => {
             assert!(flags.get().0);
             assert!(flags.get().1);
@@ -241,10 +252,10 @@ fn command_with_int_param_no_value() {
         )
         .build();
 
-    let_assert!(Err(e) = cli.exec_line("cmd --int"));
+    let_assert!(Err(e) = cli.exec("cmd --int"));
     check!(e == Error::ParameterValueMissed);
 
-    let_assert!(Err(e) = cli.exec_line("cmd -i"));
+    let_assert!(Err(e) = cli.exec("cmd -i"));
     check!(e == Error::ParameterValueMissed);
 }
 
@@ -272,17 +283,17 @@ fn command_with_int_param() {
         )
         .build();
 
-    match cli.exec_line("cmd --int 42") {
+    match cli.exec("cmd --int 42") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --ii 42") {
+    match cli.exec("cmd --ii 42") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -i 42") {
+    match cli.exec("cmd -i 42") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -323,12 +334,12 @@ fn command_with_two_int_param() {
         )
         .build();
 
-    match cli.exec_line("cmd --int1 42 --int2 333") {
+    match cli.exec("cmd --int1 42 --int2 333") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -1 42 -2 333") {
+    match cli.exec("cmd -1 42 -2 333") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -350,10 +361,10 @@ fn command_with_float_param_no_value() {
         )
         .build();
 
-    let_assert!(Err(e) = cli.exec_line("cmd --float"));
+    let_assert!(Err(e) = cli.exec("cmd --float"));
     check!(e == Error::ParameterValueMissed);
 
-    let_assert!(Err(e) = cli.exec_line("cmd -f"));
+    let_assert!(Err(e) = cli.exec("cmd -f"));
     check!(e == crate::error::Error::ParameterValueMissed);
 }
 
@@ -381,17 +392,17 @@ fn command_with_float_param() {
         )
         .build();
 
-    match cli.exec_line("cmd --float 4.2") {
+    match cli.exec("cmd --float 4.2") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --ff 4.2") {
+    match cli.exec("cmd --ff 4.2") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -f 4.2") {
+    match cli.exec("cmd -f 4.2") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -433,12 +444,12 @@ fn command_with_two_float_param() {
         )
         .build();
 
-    match cli.exec_line("cmd --float1 4.2 --float2 3.33") {
+    match cli.exec("cmd --float1 4.2 --float2 3.33") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -1 4.2 -2 3.33") {
+    match cli.exec("cmd -1 4.2 -2 3.33") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -460,10 +471,10 @@ fn command_with_string_param_no_value() {
         )
         .build();
 
-    let_assert!(Err(e) = cli.exec_line("cmd --string"));
+    let_assert!(Err(e) = cli.exec("cmd --string"));
     check!(e == Error::ParameterValueMissed);
 
-    let_assert!(Err(e) = cli.exec_line("cmd -s"));
+    let_assert!(Err(e) = cli.exec("cmd -s"));
     check!(e == Error::ParameterValueMissed);
 }
 
@@ -493,33 +504,33 @@ fn command_with_sting_param() {
         )
         .build();
 
-    match cli.exec_line("cmd --string abc") {
+    match cli.exec("cmd --string abc") {
         Ok(s) => assert_eq!(s, "abc"),
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --ss abc") {
+    match cli.exec("cmd --ss abc") {
         Ok(s) => assert_eq!(s, "abc"),
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -s abc") {
+    match cli.exec("cmd -s abc") {
         Ok(s) => assert_eq!(s, "abc"),
         Err(err) => panic!("{:?}", err),
     }
 
     //quotes
-    match cli.exec_line("cmd --string \"abc 123\"") {
+    match cli.exec("cmd --string \"abc 123\"") {
         Ok(s) => assert_eq!(s, "abc 123"),
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --ss \"abc 123\"") {
+    match cli.exec("cmd --ss \"abc 123\"") {
         Ok(s) => assert_eq!(s, "abc 123"),
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -s \"abc 123\"") {
+    match cli.exec("cmd -s \"abc 123\"") {
         Ok(s) => assert_eq!(s, "abc 123"),
         Err(err) => panic!("{:?}", err),
     }
@@ -563,7 +574,7 @@ fn command_with_two_string_param() {
         )
         .build();
 
-    match cli.exec_line("cmd --string1 4.2 --string2 3.33") {
+    match cli.exec("cmd --string1 4.2 --string2 3.33") {
         Ok(r) => {
             if let (Some(s1), Some(s2)) = r {
                 assert_eq!(s1.as_str(), "4.2");
@@ -575,7 +586,7 @@ fn command_with_two_string_param() {
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -1 4.2 -2 3.33") {
+    match cli.exec("cmd -1 4.2 -2 3.33") {
         Ok(r) => {
             if let (Some(s1), Some(s2)) = r {
                 assert_eq!(s1.as_str(), "4.2");
@@ -587,7 +598,7 @@ fn command_with_two_string_param() {
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --string1 '4.2 2.4' --string2 '3.33 mm'") {
+    match cli.exec("cmd --string1 '4.2 2.4' --string2 '3.33 mm'") {
         Ok(r) => {
             if let (Some(s1), Some(s2)) = r {
                 assert_eq!(s1.as_str(), "4.2 2.4");
@@ -599,7 +610,7 @@ fn command_with_two_string_param() {
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -1 \"4.2 2.4\" -2 \"3.33 mm\"") {
+    match cli.exec("cmd -1 \"4.2 2.4\" -2 \"3.33 mm\"") {
         Ok(r) => {
             if let (Some(s1), Some(s2)) = r {
                 assert_eq!(s1.as_str(), "4.2 2.4");
@@ -688,27 +699,27 @@ fn command_with_mixed_params() {
         )
         .build();
 
-    match cli.exec_line("cmd --bool --int 42 --float 4.2 --string bla") {
+    match cli.exec("cmd --bool --int 42 --float 4.2 --string bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --float 4.2 --int 42 --bool --string bla") {
+    match cli.exec("cmd --float 4.2 --int 42 --bool --string bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --bb --ii 42 --ff 4.2 --ss bla") {
+    match cli.exec("cmd --bb --ii 42 --ff 4.2 --ss bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -b -i 42 -f 4.2 -s bla") {
+    match cli.exec("cmd -b -i 42 -f 4.2 -s bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -bifs 42 4.2 bla") {
+    match cli.exec("cmd -bifs 42 4.2 bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -727,12 +738,12 @@ fn command_with_subcommand() {
         ))
         .build();
 
-    if cli.exec_line("cmd").is_ok() {
+    if cli.exec("cmd").is_ok() {
         panic!("error expected")
     }
     assert!(!is_triggered.get());
 
-    if let Err(e) = cli.exec_line("cmd sub") {
+    if let Err(e) = cli.exec("cmd sub") {
         panic!("{:?}", e)
     }
     assert!(is_triggered.get());
@@ -822,22 +833,22 @@ fn command_with_subcommand_with_mixed_params() {
         )
         .build();
 
-    match cli.exec_line("cmd sub --bool --int 42 --float 4.2 --string bla") {
+    match cli.exec("cmd sub --bool --int 42 --float 4.2 --string bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd sub --bb --ii 42 --ff 4.2 --ss bla") {
+    match cli.exec("cmd sub --bb --ii 42 --ff 4.2 --ss bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd sub -b -i 42 -f 4.2 -s bla") {
+    match cli.exec("cmd sub -b -i 42 -f 4.2 -s bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd sub -bifs 42 4.2 bla") {
+    match cli.exec("cmd sub -bifs 42 4.2 bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -921,22 +932,22 @@ fn command_with_mixed_params_with_subcommand() {
         )
         .build();
 
-    match cli.exec_line("cmd --bool --int 42 --float 4.2 --string bla sub") {
+    match cli.exec("cmd --bool --int 42 --float 4.2 --string bla sub") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --ii 42 --ff 4.2 --bb --ss bla sub") {
+    match cli.exec("cmd --ii 42 --ff 4.2 --bb --ss bla sub") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -b -i 42 -f 4.2 -s bla sub") {
+    match cli.exec("cmd -b -i 42 -f 4.2 -s bla sub") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -bifs 42 4.2 bla sub") {
+    match cli.exec("cmd -bifs 42 4.2 bla sub") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -1087,24 +1098,24 @@ fn command_with_mixed_params_with_subcommand_with_mixed_params() {
         )
         .build();
 
-    match cli.exec_line(
+    match cli.exec(
         "cmd --bool --int 42 --float 4.2 --string bla sub --float 2.4 --int 24 --bool --string alb",
     ) {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --ii 42 --ff 4.2 --bb --ss bla sub --ff 2.4 --ii 24 --bb --ss alb") {
+    match cli.exec("cmd --ii 42 --ff 4.2 --bb --ss bla sub --ff 2.4 --ii 24 --bb --ss alb") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -b -i 42 -f 4.2 -s bla sub -f 2.4 -i 24 -b -s alb") {
+    match cli.exec("cmd -b -i 42 -f 4.2 -s bla sub -f 2.4 -i 24 -b -s alb") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -bifs 42 4.2 bla sub -fibs 2.4 24 alb") {
+    match cli.exec("cmd -bifs 42 4.2 bla sub -fibs 2.4 24 alb") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -1129,7 +1140,7 @@ fn command_with_bool_value() {
         )
         .build();
 
-    match cli.exec_line("cmd true") {
+    match cli.exec("cmd true") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -1154,7 +1165,7 @@ fn command_with_int_value() {
         )
         .build();
 
-    match cli.exec_line("cmd 42") {
+    match cli.exec("cmd 42") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -1179,7 +1190,7 @@ fn command_with_float_value() {
         )
         .build();
 
-    match cli.exec_line("cmd 4.2") {
+    match cli.exec("cmd 4.2") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -1204,7 +1215,7 @@ fn command_with_string_value() {
         )
         .build();
 
-    match cli.exec_line("cmd bla") {
+    match cli.exec("cmd bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -1293,27 +1304,27 @@ fn command_with_mixed_params_and_value() {
         )
         .build();
 
-    match cli.exec_line("cmd false --bool --int 42 --float 4.2 --string bla") {
+    match cli.exec("cmd false --bool --int 42 --float 4.2 --string bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd --float 4.2 --int 42 --bool --string bla off") {
+    match cli.exec("cmd --float 4.2 --int 42 --bool --string bla off") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd 0 --bb --ii 42 --ff 4.2 --ss bla") {
+    match cli.exec("cmd 0 --bb --ii 42 --ff 4.2 --ss bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -b -i 42 no -f 4.2 -s bla") {
+    match cli.exec("cmd -b -i 42 no -f 4.2 -s bla") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
 
-    match cli.exec_line("cmd -bifs 42 4.2 bla off") {
+    match cli.exec("cmd -bifs 42 4.2 bla off") {
         Ok(_) => {}
         Err(err) => panic!("{:?}", err),
     }
@@ -1345,7 +1356,7 @@ fn command_help() {
         .command(CommandBuilder::with_name("another_cmd").use_value(ArgType::Bool))
         .build();
 
-    assert!(cli.exec_line("help").is_ok());
+    assert!(cli.exec("help").is_ok());
     assert_eq!(
         help_text.borrow().as_str(),
         r"Help:
@@ -1389,7 +1400,7 @@ fn sub_command_help() {
         .command(CommandBuilder::with_name("another_cmd").use_value(ArgType::Bool))
         .build();
 
-    assert!(cli.exec_line("cmd help").is_ok());
+    assert!(cli.exec("cmd help").is_ok());
     assert_eq!(
         help_text.borrow().as_str(),
         r"Help:
@@ -1419,7 +1430,7 @@ fn sub_command() {
         .command(CommandBuilder::with_name("another_cmd").use_value(ArgType::Bool))
         .build();
 
-    let res = cli.exec_line("cmd sub 10");
+    let res = cli.exec("cmd sub 10");
     assert!(res.is_ok());
     assert!(res.unwrap());
 }

@@ -29,7 +29,7 @@ use std::{
 ///      )
 ///      .build();
 ///
-/// assert!(cli.exec_line("cmd").unwrap());
+/// assert!(cli.exec("cmd").unwrap());
 /// ```
 #[derive(Debug)]
 pub struct Cli<T: Config> {
@@ -51,7 +51,10 @@ impl<T: Config> Cli<T> {
     }
 
     /// Execute _line_
-    pub fn exec_line(&self, line: &str) -> Result<T::Result, Error> {
+    pub fn exec<'a>(&'a self, line: &'a str) -> Result<'a, T::Result> {
+        self.exec_line(line).or_else(|e| self.handle_error(e))
+    }
+    fn exec_line<'a>(&'a self, line: &'a str) -> Result<'a, T::Result> {
         enum ParseState {
             ReadFirst,
             ReadNext,
@@ -74,7 +77,7 @@ impl<T: Config> Cli<T> {
             match state {
                 ParseState::ReadFirst => {
                     if arg.starts_with("--") || arg.starts_with('-') {
-                        return self.make_error(Error::CantExecuteParameter, arg.to_string());
+                        return Err(Error::CommandExpected(span));
                     } else if let Some(cmd) = self.commands().get(arg) {
                         ctx.units.push(ContextUnit {
                             command: (arg, cmd.clone()),
@@ -83,7 +86,7 @@ impl<T: Config> Cli<T> {
                         });
                         state = ParseState::ReadNext;
                     } else {
-                        return self.make_error(Error::NotCommand, arg.to_string());
+                        return Err(Error::NotCommand(span));
                     }
                 }
 
@@ -106,7 +109,7 @@ impl<T: Config> Cli<T> {
                                 new_state = Some(ParseState::ParametersReaded { params });
                             }
                         } else {
-                            return self.make_error(Error::NotParameter, arg.to_string());
+                            return Err(Error::NotParameter(span));
                         }
                     } else if let Some(arg) = arg.strip_prefix('-') {
                         let mut params = VecDeque::with_capacity(arg.len());
@@ -124,7 +127,7 @@ impl<T: Config> Cli<T> {
                                     params.push_back(p.clone());
                                 }
                             } else {
-                                return self.make_error(Error::NotParameter, arg.to_string());
+                                return Err(Error::NotParameter(span));
                             }
                         }
 
@@ -140,16 +143,10 @@ impl<T: Config> Cli<T> {
                         pos += 1;
                         new_state = Some(ParseState::ReadNext);
                     } else if let Some(v) = cmd.value.as_ref() {
-                        match parse_arg(v.clone(), arg) {
-                            Ok(value) => {
-                                last_unit.value = Some(value);
-                            }
-                            Err(details) => {
-                                return self.make_error(Error::ValueParseFailed, details)
-                            }
-                        };
+                        let value = parse_arg(v.clone(), arg, span)?;
+                        last_unit.value = Some(value);
                     } else {
-                        return self.make_error(Error::NotCommand, arg.to_string());
+                        return Err(Error::NotCommand(span));
                     }
 
                     if let Some(s) = new_state {
@@ -161,40 +158,32 @@ impl<T: Config> Cli<T> {
                     let last_unit = &mut ctx.units[pos];
 
                     let param = params.pop_front().unwrap();
-                    match parse_arg(param.value_type.clone(), arg) {
-                        Ok(value) => {
-                            last_unit
-                                .parameters
-                                .insert(param.name.clone(), (param.clone(), value));
-                            if params.is_empty() {
-                                state = ParseState::ReadNext;
-                            } else {
-                                state = ParseState::ParametersReaded { params };
-                            }
-                        }
-                        Err(details) => {
-                            return self.make_error(Error::ValueParseFailed, details);
-                        }
-                    };
+                    let value = parse_arg(param.value_type.clone(), arg, span)?;
+
+                    last_unit
+                        .parameters
+                        .insert(param.name.clone(), (param.clone(), value));
+                    if params.is_empty() {
+                        state = ParseState::ReadNext;
+                    } else {
+                        state = ParseState::ParametersReaded { params };
+                    }
                 }
             }
         }
 
         if let ParseState::ParametersReaded { mut params } = state {
             if params.len() > 1 {
-                return self.make_error(
-                    Error::ParserError,
-                    format!("Wrong params value: {}", params.len()),
-                );
+                return Err(Error::ParserFault);
             }
             let param = params.pop_back().unwrap();
             match param.value_type {
                 ArgType::Bool => {}
                 _ => {
-                    return self.make_error(
+                    return Err(
                         Error::ParameterValueMissed,
-                        format!("parametr \"{}\" has no value", param.name),
-                    )
+                        // format!("parametr \"{}\" has no value", param.name),
+                    );
                 }
             }
         };
@@ -202,20 +191,17 @@ impl<T: Config> Cli<T> {
         if let Some(cmd) = ctx.units.last() {
             let name = cmd.command.0;
             let cmd = cmd.command.1.clone();
-            if let Some(f) = &cmd.exec {
-                return Ok(f.borrow_mut()(ctx));
-            } else {
-                return self.make_error(
-                    Error::CantExecuteCommand,
-                    format!("No handler for command: {}", name),
-                );
-            }
+
+            return match &cmd.exec {
+                Some(f) => Ok(f.borrow_mut()(ctx)),
+                None => Err(Error::NoHandler(name)),
+            };
         }
 
         Ok(Default::default())
     }
 
-    fn make_error(&self, error: Error, details: String) -> Result<T::Result, Error> {
+    fn handle_error<'a>(&'a self, error: Error<'a>) -> Result<'a, T::Result> {
         if self.need_print_error {
             self.print_error(&error);
         }
@@ -376,33 +362,26 @@ fn split_line(line: &str) -> impl Iterator<Item = (&str, Span)> {
     result
 }
 
-fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, String> {
+fn parse_arg<'a>(arg_type: ArgType, arg: &'a str, span: Span<'a>) -> Result<'a, ArgValue> {
     if arg.starts_with('-') && !(arg_type != ArgType::Int || arg_type != ArgType::Float) {
-        return Err(format!("Seems {} is not a value", arg));
+        return Err(Error::NotValue(span));
     }
 
     let value: ArgValue = match arg_type {
         ArgType::Bool => match arg {
             "true" | "yes" | "1" | "on" => ArgValue::Bool(true),
             "false" | "no" | "0" | "off" => ArgValue::Bool(false),
-            _ => {
-                return Err(format!(
-                    "\"{}\" is not a boolean value. \
-                                    Use \"1\", \"true\", \"yes\", \"on\" for true, \
-                                    and \"0\", \"false\", \"no\", \"off\" for false",
-                    arg
-                ))
-            }
+            _ => return Err(Error::ParseBool(span)),
         },
 
         ArgType::Int => match i64::from_str(arg) {
             Ok(i) => ArgValue::Int(i),
-            Err(e) => return Err(format!("Parse int error: {}", e)),
+            Err(e) => return Err(Error::ParseInt(span, e)),
         },
 
         ArgType::Float => match f64::from_str(arg) {
             Ok(f) => ArgValue::Float(f),
-            Err(e) => return Err(format!("Parse float error: {}", e)),
+            Err(e) => return Err(Error::ParseFloat(span, e)),
         },
 
         ArgType::String => ArgValue::String(arg.to_string()),
@@ -413,8 +392,9 @@ fn parse_arg(arg_type: ArgType, arg: &str) -> std::result::Result<ArgValue, Stri
 
 #[cfg(test)]
 mod test {
+    use super::split_line;
     use crate::{ArgType, ArgValue};
-    use assert2::check;
+    use assert2::{check, let_assert};
 
     macro_rules! check_arg {
         ($record:expr, $etalon:literal) => {
@@ -425,7 +405,7 @@ mod test {
     }
 
     #[test]
-    fn split_line() {
+    fn split_line_simple() {
         let line = "one two three";
         let v = super::split_line(line).collect::<Vec<_>>();
         check_arg!(v[0], "one");
@@ -465,100 +445,120 @@ mod test {
 
     #[test]
     fn parse_arg_bool() {
-        let f = |arg, state| {
-            let result = super::parse_arg(ArgType::Bool, arg);
-            match result {
-                Ok(arg_value) => match arg_value {
-                    ArgValue::Bool(v) => assert_eq!(v, state),
-                    _ => panic!("bad type"),
-                },
-                Err(err) => panic!("{:?}", err),
-            }
+        let f = |arg, state, span| {
+            let_assert!(Ok(v) = super::parse_arg(ArgType::Bool, arg, span));
+            let_assert!(ArgValue::Bool(v) = v);
+            check!(v == state);
         };
-        let true_args = ["true", "1", "yes", "on"];
-        for arg in true_args.iter() {
-            f(arg, true);
+
+        for (arg, span) in split_line("true 1 yes on") {
+            f(arg, true, span);
         }
-        let false_args = ["false", "0", "no", "off"];
-        for arg in false_args.iter() {
-            f(arg, false);
+
+        for (arg, span) in split_line("false 0 no off") {
+            f(arg, false, span);
         }
     }
+
     #[test]
     fn parse_arg_bool_error() {
-        let result = super::parse_arg(ArgType::Bool, "not_a_bool");
-        match result {
-            Ok(arg_value) => panic!("error expected, but got this: {:?}", arg_value),
-            Err(err) => assert!(!err.is_empty()),
-        }
+        let line = "not_a_bool";
+        check!(let Err(_) = super::parse_arg(ArgType::Bool, line, crate::error::Span { source: line, begin: 0, end: line.len() }));
     }
 
     #[test]
     fn parse_arg_int() {
         use rand::prelude::*;
 
-        let mut numbers = Vec::<(String, i64)>::with_capacity(12);
-        numbers.push((i64::MIN.to_string(), i64::MIN));
-        numbers.push((i64::MAX.to_string(), i64::MAX));
+        let mut line = String::with_capacity(100 * 2);
+        let mut numbers = Vec::with_capacity(100);
+
+        line.push_str(i64::MIN.to_string().as_str());
+        line.push(' ');
+        numbers.push(i64::MIN);
+
+        line.push_str(i64::MAX.to_string().as_str());
+        numbers.push(i64::MAX);
+        line.push(' ');
+
         for _ in 0..100 {
             let num: i64 = random();
-            numbers.push((num.to_string(), num));
+            line.push_str(num.to_string().as_str());
+            line.push(' ');
+            numbers.push(num);
         }
-        for (arg, state) in numbers.iter() {
-            let result = super::parse_arg(ArgType::Int, arg.as_str());
-            match result {
-                Ok(arg_value) => match arg_value {
-                    ArgValue::Int(v) => assert_eq!(v, *state),
-                    _ => panic!("bad type"),
-                },
-                Err(err) => panic!("{:?}", err),
-            }
+
+        for ((arg, span), state) in split_line(&line).zip(numbers.into_iter()) {
+            let_assert!(Ok(arg_value) = super::parse_arg(ArgType::Int, arg, span));
+            let_assert!(ArgValue::Int(v) = arg_value);
+            assert_eq!(v, state)
         }
     }
 
     #[test]
     fn parse_arg_int_error() {
-        let result = super::parse_arg(ArgType::Int, "not_int");
-        match result {
-            Ok(arg_value) => panic!("error expected, but got this: {:?}", arg_value),
-            Err(err) => assert!(!err.is_empty()),
-        }
+        let line = "not_int";
+        check!(let Err(_) = super::parse_arg(ArgType::Int, line, crate::error::Span { source: line, begin: 0, end: line.len() }));
+    }
+
+    #[test]
+    fn parse_arg_very_big_int_error() {
+        let line = "999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999";
+        check!(let Err(_) = super::parse_arg(ArgType::Int, line, crate::error::Span { source: line, begin: 0, end: line.len() }));
     }
 
     #[test]
     fn parse_arg_float() {
         use rand::prelude::*;
 
-        let mut numbers = Vec::<(String, f64)>::with_capacity(12);
-        numbers.push((f64::MIN.to_string(), f64::MIN));
-        numbers.push((f64::MAX.to_string(), f64::MAX));
+        let mut line = String::with_capacity(100 * 5);
+        let mut numbers = Vec::with_capacity(100);
+
+        line.push_str(f64::MIN.to_string().as_str());
+        line.push(' ');
+        numbers.push(f64::MIN);
+
+        line.push_str(f64::MAX.to_string().as_str());
+        numbers.push(f64::MAX);
+        line.push(' ');
 
         let mut rnd = thread_rng();
         for _ in 0..100 {
             let num: f64 = rnd.gen_range(f64::MIN / 2.0..f64::MAX / 2.0);
-            numbers.push((num.to_string(), num));
+            line.push_str(num.to_string().as_str());
+            line.push(' ');
+            numbers.push(num);
         }
-        for (arg, state) in numbers.iter() {
-            let result = super::parse_arg(ArgType::Float, arg.as_str());
-            match result {
-                Ok(arg_value) => match arg_value {
-                    ArgValue::Float(v) => {
-                        println!("arg: {} == v: {}", arg, v);
-                        assert_eq!(v, *state)
-                    }
-                    _ => panic!("bad type"),
-                },
-                Err(err) => panic!("{:?}", err),
-            }
+
+        for ((arg, span), state) in split_line(&line).zip(numbers.into_iter()) {
+            let_assert!(Ok(v) = super::parse_arg(ArgType::Float, arg, span));
+            let_assert!(ArgValue::Float(v) = v);
+            check!(v == state);
         }
     }
 
     #[test]
     fn parse_arg_float_error() {
-        let result = super::parse_arg(ArgType::Float, "not_float");
-        match result {
-            Ok(arg_value) => panic!("error expected, but got this: {:?}", arg_value),
-            Err(err) => assert!(!err.is_empty()),
-        }
+        let line = "not_float";
+        check!(let Err(_) = super::parse_arg(ArgType::Float, line, crate::error::Span { source: line, begin: 0, end: line.len() }));
+    }
+
+    #[test]
+    fn parse_arg_very_big_float() {
+        let line = f64::MAX.to_string() + "999";
+        let line = line.as_str();
+        let_assert!(
+            Ok(f) = super::parse_arg(
+                ArgType::Float,
+                line,
+                crate::error::Span {
+                    source: line,
+                    begin: 0,
+                    end: line.len()
+                }
+            )
+        );
+        let_assert!(ArgValue::Float(f) = f);
+        check!(f == f64::INFINITY);
     }
 }
