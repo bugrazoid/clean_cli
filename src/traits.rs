@@ -2,7 +2,7 @@ use crate::{Command, Parameter};
 use std::{fmt::Debug, marker::PhantomData};
 
 pub trait Config: Default + 'static {
-    type Result: Default + Debug + 'static;
+    type Result: Default + Debug;
     type HelpFormatter: HelpFormatter<Self>;
     type PrinterInput;
     type Printer: Printer<Self> + Default;

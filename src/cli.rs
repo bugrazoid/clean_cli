@@ -51,10 +51,10 @@ impl<T: Config> Cli<T> {
     }
 
     /// Execute _line_
-    pub fn exec<'a>(&'a self, line: &'a str) -> Result<'a, T::Result> {
+    pub fn exec<'a>(&'a self, line: &'a str) -> Result<T::Result> {
         self.exec_line(line).or_else(|e| self.handle_error(e))
     }
-    fn exec_line<'a>(&'a self, line: &'a str) -> Result<'a, T::Result> {
+    fn exec_line<'a>(&'a self, line: &'a str) -> Result<T::Result> {
         enum ParseState {
             ReadFirst,
             ReadNext,
